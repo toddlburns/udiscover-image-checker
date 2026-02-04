@@ -62,7 +62,13 @@
     .single-download-btn { background: #3a7bd5; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; margin-left: 8px; }
     .single-download-btn:hover { background: #2a6bc5; }
 
-    .image-actions { display: flex; flex-wrap: wrap; }
+    .vinyl-btn { background: #9333ea; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; margin-left: 8px; }
+    .vinyl-btn:hover { background: #7e22ce; }
+
+    .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+
+    .product-type { font-size: 0.7rem; margin-top: 4px; }
+    .product-type .badge { margin-left: 0; }
 
     #status {
       margin-top: 16px; font-size: 0.85rem; color: #888;
@@ -314,6 +320,24 @@ https://shop.udiscovermusic.com/collections/inventory-low
       return allProducts;
     }
 
+    function detectProductType(product) {
+      const title = (product.title || '').toLowerCase();
+      const tags = (product.tags || []).map(t => t.toLowerCase());
+      const allText = title + ' ' + tags.join(' ');
+
+      // Check for vinyl indicators
+      const vinylKeywords = ['vinyl', ' lp', '12"', '12 inch', '7"', '7 inch', '10"', '10 inch', 'record', 'pressing'];
+      const isVinyl = vinylKeywords.some(kw => allText.includes(kw));
+
+      // Check for CD indicators
+      const cdKeywords = [' cd', 'compact disc'];
+      const isCD = cdKeywords.some(kw => allText.includes(kw));
+
+      if (isVinyl) return 'vinyl';
+      if (isCD) return 'cd';
+      return 'unknown';
+    }
+
     async function checkProduct(product) {
       // Check each image
       const imageResults = [];
@@ -327,7 +351,8 @@ https://shop.udiscovermusic.com/collections/inventory-low
         title: product.title,
         handle: product.handle,
         featuredImage: product.images?.[0]?.src || '',
-        images: imageResults
+        images: imageResults,
+        productType: detectProductType(product)
       };
     }
 
@@ -463,13 +488,18 @@ https://shop.udiscovermusic.com/collections/inventory-low
         const hasIssues = p.error || p.images.some(img => img.issues.length > 0);
         const cardClass = p.error ? 'has-issues' : (hasIssues ? 'has-issues' : 'all-good');
 
+        const productType = p.productType || 'unknown';
+        const typeLabel = productType === 'vinyl' ? 'Vinyl' : (productType === 'cd' ? 'CD' : 'Unknown');
+        const typeBadgeClass = productType === 'vinyl' ? 'ok' : (productType === 'cd' ? 'warn' : 'error');
+
         html += `
-          <div class="product-card ${cardClass}">
+          <div class="product-card ${cardClass}" data-product-type="${productType}">
             <div class="product-header">
               ${p.featuredImage ? `<img class="product-thumb" src="${p.featuredImage}" alt="">` : ''}
               <div class="product-info">
                 <div class="product-title">${escapeHtml(p.title)}</div>
                 <div class="product-url"><a href="${p.url}" target="_blank">${p.url}</a></div>
+                <div class="product-type"><span class="badge badge-${typeBadgeClass}">${typeLabel}</span></div>
               </div>
             </div>
         `;
@@ -490,6 +520,9 @@ https://shop.udiscovermusic.com/collections/inventory-low
               transparencyStatus = 'warn';
               transparencyLabel = '?';
             }
+
+            const vinylBtn = productType === 'vinyl' ?
+              `<button class="vinyl-btn" onclick="downloadVinylImage('${img.src}', '${p.handle}', ${idx})">Download 565x565 JPG</button>` : '';
 
             html += `
               <div class="image-item">
@@ -514,11 +547,14 @@ https://shop.udiscovermusic.com/collections/inventory-low
                     <div class="issues-list">
                       ${img.issues.map(issue => `<div class="issue">${escapeHtml(issue)}</div>`).join('')}
                     </div>
-                    <div class="image-actions">
+                  ` : ''}
+                  <div class="image-actions">
+                    ${img.issues.length > 0 ? `
                       <button class="adobe-btn" onclick="openInAdobeExpress('${img.src}')">Open in Adobe Express</button>
                       <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download</button>
-                    </div>
-                  ` : ''}
+                    ` : ''}
+                    ${vinylBtn}
+                  </div>
                 </div>
               </div>
             `;
@@ -573,6 +609,45 @@ https://shop.udiscovermusic.com/collections/inventory-low
       } catch (err) {
         console.error('Failed to download:', src, err);
         alert('Failed to download image');
+      }
+    }
+
+    async function downloadVinylImage(src, handle, idx) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+
+        // Create canvas and resize to 565x565
+        const canvas = document.createElement('canvas');
+        canvas.width = 565;
+        canvas.height = 565;
+        const ctx = canvas.getContext('2d');
+
+        // Fill with white background (for transparency)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 565, 565);
+
+        // Draw resized image
+        ctx.drawImage(img, 0, 0, 565, 565);
+
+        // Convert to JPG blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+        const filename = `${handle}_${idx + 1}_565x565.jpg`;
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (err) {
+        console.error('Failed to download vinyl image:', src, err);
+        alert('Failed to download image. This may be due to CORS restrictions.');
       }
     }
 
