@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>uDiscover Image Checker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 1.5rem; color: #fff; margin-bottom: 8px; }
+    .subtitle { font-size: 0.85rem; color: #666; margin-bottom: 24px; }
+
+    textarea {
+      width: 100%; height: 150px; padding: 14px;
+      font-family: monospace; font-size: 0.9rem;
+      border: 1px solid #333; border-radius: 8px;
+      background: #1a1a1a; color: #fff;
+      outline: none; resize: vertical;
+    }
+    textarea:focus { border-color: #555; }
+    textarea::placeholder { color: #555; }
+
+    .btn-row { margin-top: 16px; display: flex; gap: 12px; }
+
+    button {
+      padding: 12px 24px; font-size: 1rem; font-weight: 600;
+      border: none; border-radius: 6px; cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #check-btn { background: #3a7bd5; color: #fff; }
+    #check-btn:hover { background: #2a6bc5; }
+    #check-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    #clear-btn { background: #333; color: #aaa; }
+    #clear-btn:hover { background: #444; color: #fff; }
+
+    #status {
+      margin-top: 16px; font-size: 0.85rem; color: #888;
+      min-height: 24px;
+    }
+
+    #results { margin-top: 24px; }
+
+    .product-card {
+      background: #1a1a1a; border-radius: 8px;
+      padding: 16px; margin-bottom: 12px;
+      border: 1px solid #333;
+    }
+
+    .product-card.has-issues { border-color: #e54; }
+    .product-card.all-good { border-color: #2a8a4a; }
+
+    .product-header {
+      display: flex; gap: 16px; margin-bottom: 12px;
+    }
+
+    .product-thumb {
+      width: 80px; height: 80px; border-radius: 4px;
+      object-fit: cover; background: #252525; flex-shrink: 0;
+    }
+
+    .product-info { flex: 1; min-width: 0; }
+
+    .product-title {
+      font-size: 1rem; font-weight: 600; color: #fff;
+      margin-bottom: 4px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .product-url {
+      font-size: 0.75rem; color: #666; font-family: monospace;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .product-url a { color: #3a7bd5; text-decoration: none; }
+    .product-url a:hover { text-decoration: underline; }
+
+    .image-list { margin-top: 12px; }
+
+    .image-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px; background: #111; border-radius: 6px;
+      margin-bottom: 8px; font-size: 0.85rem;
+    }
+
+    .image-thumb {
+      width: 50px; height: 50px; border-radius: 4px;
+      object-fit: cover; background: #252525; flex-shrink: 0;
+    }
+
+    .image-details { flex: 1; }
+
+    .image-filename {
+      color: #aaa; font-family: monospace; font-size: 0.75rem;
+      margin-bottom: 4px; word-break: break-all;
+    }
+
+    .image-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    .meta-item { display: flex; align-items: center; gap: 4px; }
+    .meta-label { color: #666; }
+    .meta-value { color: #fff; font-weight: 500; }
+
+    .badge {
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 0.7rem; font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-ok { background: rgba(42, 138, 74, 0.2); color: #4eca7a; }
+    .badge-warn { background: rgba(238, 170, 68, 0.2); color: #eaa844; }
+    .badge-error { background: rgba(238, 85, 68, 0.2); color: #e54; }
+
+    .issues-list {
+      margin-top: 8px; padding: 10px;
+      background: rgba(238, 85, 68, 0.1);
+      border-radius: 6px; border-left: 3px solid #e54;
+    }
+
+    .issue {
+      font-size: 0.85rem; color: #e54;
+      padding: 4px 0;
+    }
+
+    .summary {
+      background: #1a1a1a; border-radius: 8px;
+      padding: 16px; margin-bottom: 24px;
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+
+    .summary-stat {
+      text-align: center;
+    }
+
+    .summary-num {
+      font-size: 2rem; font-weight: 700; color: #fff;
+    }
+
+    .summary-num.errors { color: #e54; }
+    .summary-num.warnings { color: #eaa844; }
+    .summary-num.good { color: #4eca7a; }
+
+    .summary-label { font-size: 0.8rem; color: #666; }
+
+    .loading { color: #888; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>uDiscover Image Checker</h1>
+    <p class="subtitle">Paste product URLs (one per line) to check for image issues.</p>
+
+    <textarea id="urls" placeholder="https://shop.udiscovermusic.com/products/example-product
+https://shop.udiscovermusic.com/products/another-product
+..."></textarea>
+
+    <div class="btn-row">
+      <button id="check-btn" onclick="checkImages()">Check Images</button>
+      <button id="clear-btn" onclick="clearAll()">Clear</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const EXPECTED_SIZES = [[1000, 1000], [1080, 1080]];
+    const SHOP_BASE = 'https://shop.udiscovermusic.com';
+
+    async function checkImages() {
+      const textarea = document.getElementById('urls');
+      const status = document.getElementById('status');
+      const results = document.getElementById('results');
+      const btn = document.getElementById('check-btn');
+
+      const urls = textarea.value.trim().split('\n')
+        .map(u => u.trim())
+        .filter(u => u.length > 0);
+
+      if (urls.length === 0) {
+        status.textContent = 'Please enter at least one URL.';
+        return;
+      }
+
+      btn.disabled = true;
+      results.innerHTML = '';
+      status.textContent = `Checking ${urls.length} product(s)...`;
+
+      const productResults = [];
+      let processed = 0;
+
+      for (const url of urls) {
+        try {
+          const result = await checkProduct(url);
+          productResults.push(result);
+        } catch (err) {
+          productResults.push({
+            url,
+            error: err.message,
+            title: 'Error',
+            images: []
+          });
+        }
+        processed++;
+        status.textContent = `Checking ${processed}/${urls.length} product(s)...`;
+      }
+
+      renderResults(productResults);
+      btn.disabled = false;
+    }
+
+    async function checkProduct(url) {
+      // Extract handle from URL
+      const match = url.match(/\/products\/([^/?#]+)/);
+      if (!match) {
+        throw new Error('Invalid product URL');
+      }
+      const handle = match[1];
+
+      // Fetch product JSON
+      const jsonUrl = `${SHOP_BASE}/products/${handle}.json`;
+      const res = await fetch(jsonUrl);
+      if (!res.ok) throw new Error(`Failed to fetch product (${res.status})`);
+      const data = await res.json();
+      const product = data.product;
+
+      // Check each image
+      const imageResults = [];
+      for (const img of (product.images || [])) {
+        const imgResult = await checkSingleImage(img);
+        imageResults.push(imgResult);
+      }
+
+      return {
+        url,
+        title: product.title,
+        handle: product.handle,
+        featuredImage: product.images?.[0]?.src || '',
+        images: imageResults
+      };
+    }
+
+    async function checkSingleImage(img) {
+      const issues = [];
+      const src = img.src;
+      const width = img.width;
+      const height = img.height;
+
+      // Extract filename
+      const filename = src.split('/').pop().split('?')[0];
+      const ext = filename.split('.').pop().toLowerCase();
+
+      // Check format
+      const isPng = ext === 'png';
+      if (!isPng) {
+        issues.push(`Not a PNG (found .${ext})`);
+      }
+
+      // Check dimensions
+      const isCorrectSize = EXPECTED_SIZES.some(
+        ([w, h]) => width === w && height === h
+      );
+      if (!isCorrectSize) {
+        issues.push(`Unexpected dimensions: ${width}x${height} (expected 1000x1000 or 1080x1080)`);
+      }
+
+      // Check transparency (only for PNGs)
+      let hasTransparency = null;
+      if (isPng) {
+        try {
+          hasTransparency = await checkTransparency(src);
+          if (!hasTransparency) {
+            issues.push('PNG does not have transparency');
+          }
+        } catch (err) {
+          // Can't check transparency due to CORS
+          hasTransparency = 'unknown';
+        }
+      }
+
+      return {
+        src,
+        filename,
+        width,
+        height,
+        format: ext.toUpperCase(),
+        isPng,
+        isCorrectSize,
+        hasTransparency,
+        issues
+      };
+    }
+
+    async function checkTransparency(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            // Sample a smaller version for performance
+            const sampleSize = Math.min(100, img.width, img.height);
+            canvas.width = sampleSize;
+            canvas.height = sampleSize;
+            ctx.drawImage(img, 0, 0, sampleSize, sampleSize);
+
+            const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize);
+            const data = imageData.data;
+
+            // Check alpha channel (every 4th byte starting at index 3)
+            for (let i = 3; i < data.length; i += 4) {
+              if (data[i] < 255) {
+                resolve(true); // Found transparency
+                return;
+              }
+            }
+            resolve(false); // No transparency found
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = src;
+      });
+    }
+
+    function renderResults(products) {
+      const results = document.getElementById('results');
+      const status = document.getElementById('status');
+
+      let totalImages = 0;
+      let imagesWithIssues = 0;
+      let productsWithIssues = 0;
+
+      products.forEach(p => {
+        const hasIssues = p.error || p.images.some(img => img.issues.length > 0);
+        if (hasIssues) productsWithIssues++;
+        p.images.forEach(img => {
+          totalImages++;
+          if (img.issues.length > 0) imagesWithIssues++;
+        });
+      });
+
+      // Summary
+      let html = `
+        <div class="summary">
+          <div class="summary-stat">
+            <div class="summary-num">${products.length}</div>
+            <div class="summary-label">Products checked</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-num">${totalImages}</div>
+            <div class="summary-label">Images checked</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-num ${imagesWithIssues > 0 ? 'errors' : 'good'}">${imagesWithIssues}</div>
+            <div class="summary-label">Images with issues</div>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-num ${productsWithIssues > 0 ? 'warnings' : 'good'}">${productsWithIssues}</div>
+            <div class="summary-label">Products with issues</div>
+          </div>
+        </div>
+      `;
+
+      // Product cards
+      products.forEach(p => {
+        const hasIssues = p.error || p.images.some(img => img.issues.length > 0);
+        const cardClass = p.error ? 'has-issues' : (hasIssues ? 'has-issues' : 'all-good');
+
+        html += `
+          <div class="product-card ${cardClass}">
+            <div class="product-header">
+              ${p.featuredImage ? `<img class="product-thumb" src="${p.featuredImage}" alt="">` : ''}
+              <div class="product-info">
+                <div class="product-title">${escapeHtml(p.title)}</div>
+                <div class="product-url"><a href="${p.url}" target="_blank">${p.url}</a></div>
+              </div>
+            </div>
+        `;
+
+        if (p.error) {
+          html += `<div class="issues-list"><div class="issue">${escapeHtml(p.error)}</div></div>`;
+        } else {
+          html += '<div class="image-list">';
+          p.images.forEach((img, idx) => {
+            const sizeStatus = img.isCorrectSize ? 'ok' : 'error';
+            const formatStatus = img.isPng ? 'ok' : 'error';
+            let transparencyStatus = 'ok';
+            let transparencyLabel = 'Yes';
+            if (img.hasTransparency === false) {
+              transparencyStatus = 'error';
+              transparencyLabel = 'No';
+            } else if (img.hasTransparency === 'unknown') {
+              transparencyStatus = 'warn';
+              transparencyLabel = '?';
+            }
+
+            html += `
+              <div class="image-item">
+                <img class="image-thumb" src="${img.src}" alt="">
+                <div class="image-details">
+                  <div class="image-filename">${escapeHtml(img.filename)}</div>
+                  <div class="image-meta">
+                    <div class="meta-item">
+                      <span class="meta-label">Size:</span>
+                      <span class="badge badge-${sizeStatus}">${img.width}x${img.height}</span>
+                    </div>
+                    <div class="meta-item">
+                      <span class="meta-label">Format:</span>
+                      <span class="badge badge-${formatStatus}">${img.format}</span>
+                    </div>
+                    <div class="meta-item">
+                      <span class="meta-label">Transparent:</span>
+                      <span class="badge badge-${transparencyStatus}">${transparencyLabel}</span>
+                    </div>
+                  </div>
+                  ${img.issues.length > 0 ? `
+                    <div class="issues-list">
+                      ${img.issues.map(issue => `<div class="issue">${escapeHtml(issue)}</div>`).join('')}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          });
+          html += '</div>';
+        }
+
+        html += '</div>';
+      });
+
+      results.innerHTML = html;
+      status.textContent = `Done. ${imagesWithIssues} issue(s) found.`;
+    }
+
+    function clearAll() {
+      document.getElementById('urls').value = '';
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('status').textContent = '';
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+  </script>
+</body>
+</html>
