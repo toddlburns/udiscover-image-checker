@@ -59,6 +59,11 @@
     .adobe-btn { background: #ff0000; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .adobe-btn:hover { background: #cc0000; }
 
+    .single-download-btn { background: #3a7bd5; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; margin-left: 8px; }
+    .single-download-btn:hover { background: #2a6bc5; }
+
+    .image-actions { display: flex; flex-wrap: wrap; }
+
     #status {
       margin-top: 16px; font-size: 0.85rem; color: #888;
       min-height: 24px;
@@ -194,7 +199,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
 
     <div id="filter-row">
       <button class="filter-btn" id="filter-issues-btn" onclick="toggleFilter()">Show Only Issues</button>
-      <button class="download-btn" id="download-btn" onclick="downloadIssueImages()">Download Images with Issues</button>
+      <button class="download-btn" id="download-btn" onclick="downloadIssueImages()">Download All</button>
     </div>
 
     <div id="status"></div>
@@ -202,7 +207,8 @@ https://shop.udiscovermusic.com/collections/inventory-low
   </div>
 
   <script>
-    const EXPECTED_SIZES = [[1000, 1000], [1080, 1080]];
+    const MIN_SIZE = 801;
+    const MAX_SIZE = 1199;
     const SHOP_BASE = 'https://shop.udiscovermusic.com';
 
     async function checkImages() {
@@ -341,12 +347,15 @@ https://shop.udiscovermusic.com/collections/inventory-low
         issues.push(`Not a PNG (found .${ext})`);
       }
 
-      // Check dimensions
-      const isCorrectSize = EXPECTED_SIZES.some(
-        ([w, h]) => width === w && height === h
-      );
+      // Check dimensions (accept 801-1199 range)
+      const isCorrectSize = width >= MIN_SIZE && width <= MAX_SIZE &&
+                            height >= MIN_SIZE && height <= MAX_SIZE;
       if (!isCorrectSize) {
-        issues.push(`Unexpected dimensions: ${width}x${height} (expected 1000x1000 or 1080x1080)`);
+        if (width < MIN_SIZE || height < MIN_SIZE) {
+          issues.push(`Too small: ${width}x${height} (minimum ${MIN_SIZE}x${MIN_SIZE})`);
+        } else {
+          issues.push(`Too large: ${width}x${height} (maximum ${MAX_SIZE}x${MAX_SIZE})`);
+        }
       }
 
       // Check transparency (only for PNGs)
@@ -505,7 +514,10 @@ https://shop.udiscovermusic.com/collections/inventory-low
                     <div class="issues-list">
                       ${img.issues.map(issue => `<div class="issue">${escapeHtml(issue)}</div>`).join('')}
                     </div>
-                    <button class="adobe-btn" onclick="openInAdobeExpress('${img.src}')">Open in Adobe Express</button>
+                    <div class="image-actions">
+                      <button class="adobe-btn" onclick="openInAdobeExpress('${img.src}')">Open in Adobe Express</button>
+                      <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download</button>
+                    </div>
                   ` : ''}
                 </div>
               </div>
@@ -544,6 +556,24 @@ https://shop.udiscovermusic.com/collections/inventory-low
     function openInAdobeExpress(imageSrc) {
       // Open Adobe Express background remover in a new tab
       window.open('https://www.adobe.com/express/feature/image/remove-background', '_blank');
+    }
+
+    async function downloadSingleImage(src, handle, idx) {
+      try {
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const ext = src.split('.').pop().split('?')[0] || 'jpg';
+        const filename = `${handle}_${idx + 1}.${ext}`;
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (err) {
+        console.error('Failed to download:', src, err);
+        alert('Failed to download image');
+      }
     }
 
     let filterActive = false;
@@ -607,7 +637,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
       }
 
       btn.disabled = false;
-      btn.textContent = 'Download Images with Issues';
+      btn.textContent = 'Download All';
     }
   </script>
 </body>
