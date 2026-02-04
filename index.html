@@ -48,12 +48,31 @@
     #clear-btn { background: #333; color: #aaa; }
     #clear-btn:hover { background: #444; color: #fff; }
 
+    .filter-btn { background: #333; color: #aaa; }
+    .filter-btn:hover { background: #444; color: #fff; }
+    .filter-btn.active { background: #e54; color: #fff; }
+
+    .download-btn { background: #2a8a4a; color: #fff; }
+    .download-btn:hover { background: #238a3a; }
+    .download-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    .adobe-btn { background: #ff0000; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .adobe-btn:hover { background: #cc0000; }
+
     #status {
       margin-top: 16px; font-size: 0.85rem; color: #888;
       min-height: 24px;
     }
 
+    #filter-row {
+      display: none; margin-top: 16px; gap: 12px;
+      align-items: center; flex-wrap: wrap;
+    }
+    #filter-row.visible { display: flex; }
+
     #results { margin-top: 24px; }
+
+    .product-card.hidden { display: none; }
 
     .product-card {
       background: #1a1a1a; border-radius: 8px;
@@ -171,6 +190,11 @@ https://shop.udiscovermusic.com/collections/inventory-low
     <div class="btn-row">
       <button id="check-btn" onclick="checkImages()">Check Images</button>
       <button id="clear-btn" onclick="clearAll()">Clear</button>
+    </div>
+
+    <div id="filter-row">
+      <button class="filter-btn" id="filter-issues-btn" onclick="toggleFilter()">Show Only Issues</button>
+      <button class="download-btn" id="download-btn" onclick="downloadIssueImages()">Download Images with Issues</button>
     </div>
 
     <div id="status"></div>
@@ -481,6 +505,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
                     <div class="issues-list">
                       ${img.issues.map(issue => `<div class="issue">${escapeHtml(issue)}</div>`).join('')}
                     </div>
+                    <button class="adobe-btn" onclick="openInAdobeExpress('${img.src}')">Open in Adobe Express</button>
                   ` : ''}
                 </div>
               </div>
@@ -494,18 +519,95 @@ https://shop.udiscovermusic.com/collections/inventory-low
 
       results.innerHTML = html;
       status.textContent = `Done. ${imagesWithIssues} issue(s) found.`;
+
+      // Show filter row
+      document.getElementById('filter-row').classList.add('visible');
+      document.getElementById('download-btn').disabled = imagesWithIssues === 0;
     }
 
     function clearAll() {
       document.getElementById('urls').value = '';
       document.getElementById('results').innerHTML = '';
       document.getElementById('status').textContent = '';
+      document.getElementById('filter-row').classList.remove('visible');
+      filterActive = false;
+      document.getElementById('filter-issues-btn').classList.remove('active');
+      document.getElementById('filter-issues-btn').textContent = 'Show Only Issues';
     }
 
     function escapeHtml(str) {
       const d = document.createElement('div');
       d.textContent = str;
       return d.innerHTML;
+    }
+
+    function openInAdobeExpress(imageSrc) {
+      // Open Adobe Express background remover in a new tab
+      window.open('https://www.adobe.com/express/feature/image/remove-background', '_blank');
+    }
+
+    let filterActive = false;
+    let lastProducts = [];
+
+    function toggleFilter() {
+      filterActive = !filterActive;
+      const btn = document.getElementById('filter-issues-btn');
+      btn.classList.toggle('active', filterActive);
+      btn.textContent = filterActive ? 'Show All' : 'Show Only Issues';
+
+      // Toggle visibility of product cards without issues
+      document.querySelectorAll('.product-card').forEach(card => {
+        if (filterActive && card.classList.contains('all-good')) {
+          card.classList.add('hidden');
+        } else {
+          card.classList.remove('hidden');
+        }
+      });
+    }
+
+    async function downloadIssueImages() {
+      const btn = document.getElementById('download-btn');
+      btn.disabled = true;
+      btn.textContent = 'Downloading...';
+
+      const imagesWithIssues = [];
+      document.querySelectorAll('.product-card.has-issues').forEach(card => {
+        const productUrl = card.querySelector('.product-url a')?.href || '';
+        const handle = productUrl.split('/products/')[1] || 'unknown';
+
+        card.querySelectorAll('.image-item').forEach((item, idx) => {
+          const hasIssue = item.querySelector('.issues-list');
+          if (hasIssue) {
+            const imgSrc = item.querySelector('.image-thumb')?.src;
+            if (imgSrc) {
+              imagesWithIssues.push({ src: imgSrc, handle, idx });
+            }
+          }
+        });
+      });
+
+      for (const img of imagesWithIssues) {
+        try {
+          const response = await fetch(img.src);
+          const blob = await response.blob();
+          const ext = img.src.split('.').pop().split('?')[0] || 'jpg';
+          const filename = `${img.handle}_${img.idx + 1}.${ext}`;
+
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          link.click();
+          URL.revokeObjectURL(link.href);
+
+          // Small delay between downloads
+          await new Promise(r => setTimeout(r, 300));
+        } catch (err) {
+          console.error('Failed to download:', img.src, err);
+        }
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Download Images with Issues';
     }
   </script>
 </body>
