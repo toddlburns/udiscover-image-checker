@@ -162,10 +162,10 @@
 <body>
   <div class="container">
     <h1>uDiscover Image Checker</h1>
-    <p class="subtitle">Paste product URLs (one per line) to check for image issues.</p>
+    <p class="subtitle">Paste collection URLs (one per line) to check all product images.</p>
 
-    <textarea id="urls" placeholder="https://shop.udiscovermusic.com/products/example-product
-https://shop.udiscovermusic.com/products/another-product
+    <textarea id="urls" placeholder="https://shop.udiscovermusic.com/collections/soldouttest
+https://shop.udiscovermusic.com/collections/inventory-low
 ..."></textarea>
 
     <div class="btn-row">
@@ -198,46 +198,93 @@ https://shop.udiscovermusic.com/products/another-product
 
       btn.disabled = true;
       results.innerHTML = '';
-      status.textContent = `Checking ${urls.length} product(s)...`;
+      status.textContent = `Fetching products from ${urls.length} collection(s)...`;
 
-      const productResults = [];
-      let processed = 0;
+      const allProducts = [];
 
+      // Fetch all products from all collections
       for (const url of urls) {
         try {
-          const result = await checkProduct(url);
-          productResults.push(result);
+          const products = await fetchCollectionProducts(url);
+          allProducts.push(...products);
+          status.textContent = `Fetched ${allProducts.length} products so far...`;
         } catch (err) {
-          productResults.push({
+          allProducts.push({
             url,
             error: err.message,
-            title: 'Error',
+            title: 'Error loading collection',
             images: []
           });
         }
+      }
+
+      status.textContent = `Checking images for ${allProducts.length} products...`;
+
+      // Check images for each product
+      const productResults = [];
+      let processed = 0;
+
+      for (const product of allProducts) {
+        if (product.error) {
+          productResults.push(product);
+        } else {
+          try {
+            const result = await checkProduct(product);
+            productResults.push(result);
+          } catch (err) {
+            productResults.push({
+              url: product.url,
+              error: err.message,
+              title: product.title || 'Error',
+              images: []
+            });
+          }
+        }
         processed++;
-        status.textContent = `Checking ${processed}/${urls.length} product(s)...`;
+        if (processed % 5 === 0 || processed === allProducts.length) {
+          status.textContent = `Checking images: ${processed}/${allProducts.length} products...`;
+        }
       }
 
       renderResults(productResults);
       btn.disabled = false;
     }
 
-    async function checkProduct(url) {
-      // Extract handle from URL
-      const match = url.match(/\/products\/([^/?#]+)/);
+    async function fetchCollectionProducts(url) {
+      // Extract collection handle from URL
+      const match = url.match(/\/collections\/([^/?#]+)/);
       if (!match) {
-        throw new Error('Invalid product URL');
+        throw new Error('Invalid collection URL');
       }
       const handle = match[1];
 
-      // Fetch product JSON
-      const jsonUrl = `${SHOP_BASE}/products/${handle}.json`;
-      const res = await fetch(jsonUrl);
-      if (!res.ok) throw new Error(`Failed to fetch product (${res.status})`);
-      const data = await res.json();
-      const product = data.product;
+      // Fetch all products (paginate if needed)
+      const allProducts = [];
+      let page = 1;
+      const limit = 250; // Max per page
 
+      while (true) {
+        const jsonUrl = `${SHOP_BASE}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
+        const res = await fetch(jsonUrl);
+        if (!res.ok) throw new Error(`Failed to fetch collection (${res.status})`);
+        const data = await res.json();
+
+        if (!data.products || data.products.length === 0) break;
+
+        allProducts.push(...data.products.map(p => ({
+          ...p,
+          url: `${SHOP_BASE}/products/${p.handle}`,
+          collectionHandle: handle
+        })));
+
+        if (data.products.length < limit) break;
+        page++;
+      }
+
+      return allProducts;
+    }
+
+    async function checkProduct(product) {
       // Check each image
       const imageResults = [];
       for (const img of (product.images || [])) {
@@ -246,7 +293,7 @@ https://shop.udiscovermusic.com/products/another-product
       }
 
       return {
-        url,
+        url: product.url,
         title: product.title,
         handle: product.handle,
         featuredImage: product.images?.[0]?.src || '',
