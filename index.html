@@ -71,6 +71,9 @@
     .resize-btn { background: #059669; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .resize-btn:hover { background: #047857; }
 
+    .convert-png-btn { background: #6366f1; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .convert-png-btn:hover { background: #4f46e5; }
+
 
     .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
@@ -541,6 +544,10 @@ https://shop.udiscovermusic.com/collections/inventory-low
             const squareBtn = !img.isSquare ?
               `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Make Square</button>` : '';
 
+            const isWebp = img.format.toLowerCase() === 'webp';
+            const convertPngBtn = isWebp ?
+              `<button class="convert-png-btn" onclick="convertToPng('${img.src}', '${p.handle}', ${idx})">Convert to PNG</button>` : '';
+
             const cropStatus = img.isSquare ? 'ok' : 'error';
             const cropLabel = img.isSquare ? 'Square' : 'Bad Crop';
 
@@ -575,6 +582,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
                   <div class="image-actions">
                     <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download Original</button>
                     <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx})">Download 1000x1000</button>
+                    ${convertPngBtn}
                     ${vinylBtn}
                     ${cdBtn}
                     ${squareBtn}
@@ -817,6 +825,38 @@ https://shop.udiscovermusic.com/collections/inventory-low
       } catch (err) {
         console.error('Failed to resize image:', src, err);
         alert('Failed to process image. This may be due to CORS restrictions.');
+      }
+    }
+
+    async function convertToPng(src, handle, idx) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+
+        ctx.drawImage(img, 0, 0);
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const filename = `${handle}_${idx + 1}.png`;
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (err) {
+        console.error('Failed to convert to PNG:', src, err);
+        alert('Failed to convert image. This may be due to CORS restrictions.');
       }
     }
 
