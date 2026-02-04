@@ -543,7 +543,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
               `<button class="cd-btn" onclick="downloadCDImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Download 553x535 JPG</button>` : '';
 
             const squareBtn = !img.isSquare ?
-              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Make Square</button>` : '';
+              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Make Square 1000x1000</button>` : '';
 
             const isWebp = img.format.toLowerCase() === 'webp';
             const convertPngBtn = isWebp ?
@@ -690,23 +690,31 @@ https://shop.udiscovermusic.com/collections/inventory-low
           img.src = src;
         });
 
-        // Calculate square size (use the larger dimension)
-        const size = Math.max(origWidth, origHeight);
-
-        // Create canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
+        // Step 1: Make square by padding (use larger dimension)
+        const squareSize = Math.max(origWidth, origHeight);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = squareSize;
+        tempCanvas.height = squareSize;
+        const tempCtx = tempCanvas.getContext('2d');
 
         // Fill with white background
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, size, size);
+        tempCtx.fillStyle = '#FFFFFF';
+        tempCtx.fillRect(0, 0, squareSize, squareSize);
 
         // Center the image
-        const x = (size - origWidth) / 2;
-        const y = (size - origHeight) / 2;
-        ctx.drawImage(img, x, y, origWidth, origHeight);
+        const x = (squareSize - origWidth) / 2;
+        const y = (squareSize - origHeight) / 2;
+        tempCtx.drawImage(img, x, y, origWidth, origHeight);
+
+        // Step 2: Resize to 1000x1000
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = 1000;
+        finalCanvas.height = 1000;
+        const finalCtx = finalCanvas.getContext('2d');
+
+        finalCtx.fillStyle = '#FFFFFF';
+        finalCtx.fillRect(0, 0, 1000, 1000);
+        finalCtx.drawImage(tempCanvas, 0, 0, 1000, 1000);
 
         // Get original format or default to PNG
         const ext = src.split('.').pop().split('?')[0].toLowerCase();
@@ -715,8 +723,8 @@ https://shop.udiscovermusic.com/collections/inventory-low
         const fileExt = isPng ? 'png' : 'jpg';
 
         // Convert to blob
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
-        const filename = `${handle}_${idx + 1}_${size}x${size}.${fileExt}`;
+        const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, mimeType, 0.9));
+        const filename = `${handle}_${idx + 1}_1000x1000.${fileExt}`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
