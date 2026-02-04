@@ -335,9 +335,10 @@ https://shop.udiscovermusic.com/collections/inventory-low
       const tags = (product.tags || []).map(t => t.toLowerCase());
       const allText = title + ' ' + tags.join(' ');
 
-      // Check for vinyl indicators
-      const vinylKeywords = ['vinyl', ' lp', '12"', '12 inch', '7"', '7 inch', '10"', '10 inch', 'record', 'pressing'];
-      const isVinyl = vinylKeywords.some(kw => allText.includes(kw));
+      // Check for vinyl indicators (including 1lp, 2lp, etc.)
+      const vinylKeywords = ['vinyl', ' lp', '1lp', '2lp', '3lp', '4lp', '-lp', '12"', '12 inch', '7"', '7 inch', '10"', '10 inch', 'record', 'pressing'];
+      const isVinyl = vinylKeywords.some(kw => allText.includes(kw)) ||
+                      /\blp\b/.test(allText); // Also match "lp" as whole word
 
       // Check for CD indicators (including 1cd, 2cd, etc.)
       const cdKeywords = [' cd', 'compact disc', '1cd', '2cd', '3cd', '4cd', '-cd'];
