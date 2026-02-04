@@ -339,9 +339,10 @@ https://shop.udiscovermusic.com/collections/inventory-low
       const vinylKeywords = ['vinyl', ' lp', '12"', '12 inch', '7"', '7 inch', '10"', '10 inch', 'record', 'pressing'];
       const isVinyl = vinylKeywords.some(kw => allText.includes(kw));
 
-      // Check for CD indicators
-      const cdKeywords = [' cd', 'compact disc'];
-      const isCD = cdKeywords.some(kw => allText.includes(kw));
+      // Check for CD indicators (including 1cd, 2cd, etc.)
+      const cdKeywords = [' cd', 'compact disc', '1cd', '2cd', '3cd', '4cd', '-cd'];
+      const isCD = cdKeywords.some(kw => allText.includes(kw)) ||
+                   /\bcd\b/.test(allText); // Also match "cd" as whole word
 
       if (isVinyl) return 'vinyl';
       if (isCD) return 'cd';
