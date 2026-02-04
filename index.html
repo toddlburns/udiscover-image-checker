@@ -71,8 +71,6 @@
     .resize-btn { background: #059669; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .resize-btn:hover { background: #047857; }
 
-    .removebg-btn { background: #dc2626; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
-    .removebg-btn:hover { background: #b91c1c; }
 
     .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
@@ -577,7 +575,6 @@ https://shop.udiscovermusic.com/collections/inventory-low
                   <div class="image-actions">
                     <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download Original</button>
                     <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx})">Download 1000x1000</button>
-                    <button class="removebg-btn" onclick="removeBackground('${img.src}', '${p.handle}', ${idx})">Remove Background</button>
                     ${vinylBtn}
                     ${cdBtn}
                     ${squareBtn}
@@ -819,71 +816,6 @@ https://shop.udiscovermusic.com/collections/inventory-low
         URL.revokeObjectURL(link.href);
       } catch (err) {
         console.error('Failed to resize image:', src, err);
-        alert('Failed to process image. This may be due to CORS restrictions.');
-      }
-    }
-
-    async function removeBackground(src, handle, idx) {
-      try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = src;
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-
-        // Get background color from corners (average)
-        const corners = [
-          [0, 0], [canvas.width - 1, 0],
-          [0, canvas.height - 1], [canvas.width - 1, canvas.height - 1]
-        ];
-        let bgR = 0, bgG = 0, bgB = 0;
-        corners.forEach(([x, y]) => {
-          const i = (y * canvas.width + x) * 4;
-          bgR += data[i];
-          bgG += data[i + 1];
-          bgB += data[i + 2];
-        });
-        bgR = Math.round(bgR / 4);
-        bgG = Math.round(bgG / 4);
-        bgB = Math.round(bgB / 4);
-
-        // Remove pixels similar to background color
-        const tolerance = 30;
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-
-          const diff = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB);
-          if (diff < tolerance * 3) {
-            data[i + 3] = 0; // Make transparent
-          }
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const filename = `${handle}_${idx + 1}_nobg.png`;
-
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(link.href);
-      } catch (err) {
-        console.error('Failed to remove background:', src, err);
         alert('Failed to process image. This may be due to CORS restrictions.');
       }
     }
