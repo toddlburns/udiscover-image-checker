@@ -65,6 +65,9 @@
     .vinyl-btn { background: #9333ea; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; margin-left: 8px; }
     .vinyl-btn:hover { background: #7e22ce; }
 
+    .square-btn { background: #ea580c; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; margin-left: 8px; }
+    .square-btn:hover { background: #c2410c; }
+
     .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
     .product-type { font-size: 0.7rem; margin-top: 4px; }
@@ -397,6 +400,9 @@ https://shop.udiscovermusic.com/collections/inventory-low
         }
       }
 
+      // Check if image is square
+      const isSquare = width === height;
+
       return {
         src,
         filename,
@@ -405,6 +411,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
         format: ext.toUpperCase(),
         isPng,
         isCorrectSize,
+        isSquare,
         hasTransparency,
         issues
       };
@@ -524,6 +531,12 @@ https://shop.udiscovermusic.com/collections/inventory-low
             const vinylBtn = productType === 'vinyl' ?
               `<button class="vinyl-btn" onclick="downloadVinylImage('${img.src}', '${p.handle}', ${idx})">Download 565x565 JPG</button>` : '';
 
+            const squareBtn = !img.isSquare ?
+              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Make Square</button>` : '';
+
+            const cropStatus = img.isSquare ? 'ok' : 'error';
+            const cropLabel = img.isSquare ? 'Square' : 'Bad Crop';
+
             html += `
               <div class="image-item">
                 <img class="image-thumb" src="${img.src}" alt="">
@@ -542,6 +555,10 @@ https://shop.udiscovermusic.com/collections/inventory-low
                       <span class="meta-label">Transparent:</span>
                       <span class="badge badge-${transparencyStatus}">${transparencyLabel}</span>
                     </div>
+                    <div class="meta-item">
+                      <span class="meta-label">Crop:</span>
+                      <span class="badge badge-${cropStatus}">${cropLabel}</span>
+                    </div>
                   </div>
                   ${img.issues.length > 0 ? `
                     <div class="issues-list">
@@ -554,6 +571,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
                       <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download</button>
                     ` : ''}
                     ${vinylBtn}
+                    ${squareBtn}
                   </div>
                 </div>
               </div>
@@ -648,6 +666,56 @@ https://shop.udiscovermusic.com/collections/inventory-low
       } catch (err) {
         console.error('Failed to download vinyl image:', src, err);
         alert('Failed to download image. This may be due to CORS restrictions.');
+      }
+    }
+
+    async function downloadSquareImage(src, handle, idx, origWidth, origHeight) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = src;
+        });
+
+        // Calculate square size (use the larger dimension)
+        const size = Math.max(origWidth, origHeight);
+
+        // Create canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // Fill with white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, size, size);
+
+        // Center the image
+        const x = (size - origWidth) / 2;
+        const y = (size - origHeight) / 2;
+        ctx.drawImage(img, x, y, origWidth, origHeight);
+
+        // Get original format or default to PNG
+        const ext = src.split('.').pop().split('?')[0].toLowerCase();
+        const isPng = ext === 'png';
+        const mimeType = isPng ? 'image/png' : 'image/jpeg';
+        const fileExt = isPng ? 'png' : 'jpg';
+
+        // Convert to blob
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
+        const filename = `${handle}_${idx + 1}_${size}x${size}.${fileExt}`;
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (err) {
+        console.error('Failed to make square image:', src, err);
+        alert('Failed to process image. This may be due to CORS restrictions.');
       }
     }
 
