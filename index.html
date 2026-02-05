@@ -246,10 +246,32 @@
       display: flex; align-items: center; gap: 8px;
       background: #252525; padding: 8px 12px; border-radius: 6px;
     }
-    .saved-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+    .saved-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer; }
     .saved-item-info { font-size: 0.75rem; color: #aaa; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .saved-item-remove { background: #dc2626; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
     .saved-item-remove:hover { background: #b91c1c; }
+
+    .expand-saved-btn { background: #ca8a04; color: #fff; font-size: 0.8rem; padding: 6px 12px; }
+    .expand-saved-btn:hover { background: #a16207; }
+
+    /* Expanded work mode */
+    .saved-list.expanded { flex-direction: column; }
+    .saved-list.expanded .saved-item {
+      flex-direction: column; align-items: flex-start;
+      padding: 16px; gap: 12px;
+    }
+    .saved-list.expanded .saved-item img {
+      width: 300px; height: 300px; object-fit: contain;
+      background: #1a1a1a; border: 1px solid #333;
+    }
+    .saved-list.expanded .saved-item-info {
+      max-width: none; font-size: 0.85rem; color: #ccc;
+    }
+    .saved-list.expanded .saved-item-actions {
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .saved-item-actions { display: none; }
+    .saved-list.expanded .saved-item-actions { display: flex; }
 
     .view-saved-btn { background: #ca8a04; color: #fff; }
     .view-saved-btn:hover { background: #a16207; }
@@ -291,6 +313,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
     <div id="saved-panel" class="saved-panel">
       <div class="saved-header">
         <h3>Saved for Later</h3>
+        <button class="expand-saved-btn" id="expand-saved-btn" onclick="toggleExpandSaved()">Work on These</button>
         <button class="clear-saved-btn" onclick="clearSavedLater()">Clear All</button>
       </div>
       <div id="saved-list" class="saved-list"></div>
@@ -436,6 +459,17 @@ https://shop.udiscovermusic.com/collections/inventory-low
       }
     }
 
+    let savedExpanded = false;
+
+    function toggleExpandSaved() {
+      savedExpanded = !savedExpanded;
+      const container = document.getElementById('saved-list');
+      const btn = document.getElementById('expand-saved-btn');
+      container.classList.toggle('expanded', savedExpanded);
+      btn.textContent = savedExpanded ? 'Compact View' : 'Work on These';
+      renderSavedList();
+    }
+
     function renderSavedList() {
       const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
       const container = document.getElementById('saved-list');
@@ -448,7 +482,13 @@ https://shop.udiscovermusic.com/collections/inventory-low
       container.innerHTML = list.map(item => `
         <div class="saved-item">
           <img src="${item.fullSrc}" alt="" onclick="viewOriginal('${item.fullSrc}')">
-          <div class="saved-item-info">${escapeHtml(item.handle)}</div>
+          <div class="saved-item-info">${escapeHtml(item.handle)}${item.productTitle ? ' — ' + escapeHtml(item.productTitle) : ''}</div>
+          <div class="saved-item-actions">
+            <button class="single-download-btn" onclick="downloadSingleImage('${item.fullSrc}', '${item.handle}', 0)">Download Original</button>
+            <button class="resize-btn" onclick="downloadResizedImage('${item.fullSrc}', '${item.handle}', 0)">Download 1000x1000</button>
+            <button class="view-original-btn" onclick="viewOriginal('${item.fullSrc}')">View Original</button>
+            <button class="actually-fine-btn" onclick="markAsActuallyFine('${item.fullSrc}', '${item.handle}'); removeFromSavedLater('${item.fullSrc}')">Actually Fine</button>
+          </div>
           <button class="saved-item-remove" onclick="removeFromSavedLater('${item.fullSrc}')">Remove</button>
         </div>
       `).join('');
