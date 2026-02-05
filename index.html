@@ -74,6 +74,17 @@
     .convert-png-btn { background: #6366f1; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .convert-png-btn:hover { background: #4f46e5; }
 
+    .actually-fine-btn { background: #16a34a; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .actually-fine-btn:hover { background: #15803d; }
+
+    .mark-wrong-btn { background: #dc2626; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .mark-wrong-btn:hover { background: #b91c1c; }
+
+    .save-later-btn { background: #ca8a04; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .save-later-btn:hover { background: #a16207; }
+
+    .view-original-btn { background: #7c3aed; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .view-original-btn:hover { background: #6d28d9; }
 
     .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
@@ -197,6 +208,63 @@
     .summary-label { font-size: 0.8rem; color: #666; }
 
     .loading { color: #888; font-style: italic; }
+
+    /* Modal for viewing original image */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.9); z-index: 1000;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal-content {
+      position: relative; max-width: 95vw; max-height: 95vh;
+    }
+    .modal-image {
+      max-width: 95vw; max-height: 90vh; object-fit: contain;
+      border-radius: 8px; background: #252525;
+    }
+    .modal-close {
+      position: absolute; top: -40px; right: 0;
+      background: #e54; color: #fff; border: none;
+      padding: 8px 16px; border-radius: 4px; cursor: pointer;
+      font-size: 1rem; font-weight: 600;
+    }
+    .modal-close:hover { background: #d43; }
+
+    /* Saved for later panel */
+    .saved-panel {
+      background: #1a1a1a; border-radius: 8px;
+      padding: 16px; margin-bottom: 24px;
+      border: 1px solid #ca8a04; display: none;
+    }
+    .saved-panel.visible { display: block; }
+    .saved-panel h3 { color: #ca8a04; margin-bottom: 12px; font-size: 1rem; }
+    .saved-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .saved-item {
+      display: flex; align-items: center; gap: 8px;
+      background: #252525; padding: 8px 12px; border-radius: 6px;
+    }
+    .saved-item img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+    .saved-item-info { font-size: 0.75rem; color: #aaa; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .saved-item-remove { background: #dc2626; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
+    .saved-item-remove:hover { background: #b91c1c; }
+
+    .view-saved-btn { background: #ca8a04; color: #fff; }
+    .view-saved-btn:hover { background: #a16207; }
+
+    .clear-saved-btn { background: #dc2626; color: #fff; font-size: 0.8rem; padding: 6px 12px; margin-left: auto; }
+    .clear-saved-btn:hover { background: #b91c1c; }
+
+    .saved-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+
+    .marked-badge {
+      display: inline-block; padding: 2px 6px; border-radius: 4px;
+      font-size: 0.65rem; font-weight: 600; margin-left: 8px;
+    }
+    .marked-fine { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
+    .marked-wrong { background: rgba(220, 38, 38, 0.2); color: #f87171; }
+    .marked-later { background: rgba(202, 138, 4, 0.2); color: #fbbf24; }
   </style>
 </head>
 <body>
@@ -216,16 +284,210 @@ https://shop.udiscovermusic.com/collections/inventory-low
     <div id="filter-row">
       <button class="filter-btn" id="filter-issues-btn" onclick="toggleFilter()">Show Only Issues</button>
       <button class="download-btn" id="download-btn" onclick="downloadIssueImages()">Download All</button>
+      <button class="view-saved-btn" id="view-saved-btn" onclick="toggleSavedPanel()">View Saved (<span id="saved-count">0</span>)</button>
+    </div>
+
+    <div id="saved-panel" class="saved-panel">
+      <div class="saved-header">
+        <h3>Saved for Later</h3>
+        <button class="clear-saved-btn" onclick="clearSavedLater()">Clear All</button>
+      </div>
+      <div id="saved-list" class="saved-list"></div>
     </div>
 
     <div id="status"></div>
     <div id="results"></div>
   </div>
 
+  <!-- Modal for viewing original image -->
+  <div id="image-modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">Close</button>
+      <img id="modal-image" class="modal-image" src="" alt="Original image">
+    </div>
+  </div>
+
   <script>
     const MIN_SIZE = 801;
     const MAX_SIZE = 1199;
     const SHOP_BASE = 'https://shop.udiscovermusic.com';
+
+    // LocalStorage keys
+    const STORAGE_KEYS = {
+      ACTUALLY_FINE: 'udiscover_actually_fine',
+      MARKED_WRONG: 'udiscover_marked_wrong',
+      SAVED_LATER: 'udiscover_saved_later'
+    };
+
+    // Load lists from localStorage
+    function loadStoredList(key) {
+      try {
+        return JSON.parse(localStorage.getItem(key) || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    function saveStoredList(key, list) {
+      localStorage.setItem(key, JSON.stringify(list));
+    }
+
+    function getImageKey(src) {
+      // Normalize the URL to create a consistent key
+      return src.split('?')[0];
+    }
+
+    function isActuallyFine(src) {
+      const list = loadStoredList(STORAGE_KEYS.ACTUALLY_FINE);
+      return list.includes(getImageKey(src));
+    }
+
+    function isMarkedWrong(src) {
+      const list = loadStoredList(STORAGE_KEYS.MARKED_WRONG);
+      return list.includes(getImageKey(src));
+    }
+
+    function isSavedForLater(src) {
+      const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
+      return list.some(item => item.src === getImageKey(src));
+    }
+
+    function markAsActuallyFine(src, handle) {
+      const list = loadStoredList(STORAGE_KEYS.ACTUALLY_FINE);
+      const key = getImageKey(src);
+      if (!list.includes(key)) {
+        list.push(key);
+        saveStoredList(STORAGE_KEYS.ACTUALLY_FINE, list);
+      }
+      // Remove from marked wrong if present
+      removeFromMarkedWrong(src);
+      // Refresh the display
+      refreshCurrentResults();
+    }
+
+    function markAsWrong(src, handle) {
+      const list = loadStoredList(STORAGE_KEYS.MARKED_WRONG);
+      const key = getImageKey(src);
+      if (!list.includes(key)) {
+        list.push(key);
+        saveStoredList(STORAGE_KEYS.MARKED_WRONG, list);
+      }
+      // Remove from actually fine if present
+      removeFromActuallyFine(src);
+      // Refresh the display
+      refreshCurrentResults();
+    }
+
+    function removeFromActuallyFine(src) {
+      let list = loadStoredList(STORAGE_KEYS.ACTUALLY_FINE);
+      const key = getImageKey(src);
+      list = list.filter(k => k !== key);
+      saveStoredList(STORAGE_KEYS.ACTUALLY_FINE, list);
+    }
+
+    function removeFromMarkedWrong(src) {
+      let list = loadStoredList(STORAGE_KEYS.MARKED_WRONG);
+      const key = getImageKey(src);
+      list = list.filter(k => k !== key);
+      saveStoredList(STORAGE_KEYS.MARKED_WRONG, list);
+    }
+
+    function saveForLater(src, handle, productTitle) {
+      const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
+      const key = getImageKey(src);
+      if (!list.some(item => item.src === key)) {
+        list.push({ src: key, fullSrc: src, handle, productTitle, savedAt: Date.now() });
+        saveStoredList(STORAGE_KEYS.SAVED_LATER, list);
+      }
+      updateSavedCount();
+      refreshCurrentResults();
+    }
+
+    function removeFromSavedLater(src) {
+      let list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
+      const key = getImageKey(src);
+      list = list.filter(item => item.src !== key);
+      saveStoredList(STORAGE_KEYS.SAVED_LATER, list);
+      updateSavedCount();
+      renderSavedList();
+      refreshCurrentResults();
+    }
+
+    function clearSavedLater() {
+      if (confirm('Clear all saved for later items?')) {
+        saveStoredList(STORAGE_KEYS.SAVED_LATER, []);
+        updateSavedCount();
+        renderSavedList();
+        refreshCurrentResults();
+      }
+    }
+
+    function updateSavedCount() {
+      const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
+      document.getElementById('saved-count').textContent = list.length;
+    }
+
+    function toggleSavedPanel() {
+      const panel = document.getElementById('saved-panel');
+      panel.classList.toggle('visible');
+      if (panel.classList.contains('visible')) {
+        renderSavedList();
+      }
+    }
+
+    function renderSavedList() {
+      const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
+      const container = document.getElementById('saved-list');
+
+      if (list.length === 0) {
+        container.innerHTML = '<p style="color: #666; font-size: 0.85rem;">No items saved for later.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="saved-item">
+          <img src="${item.fullSrc}" alt="" onclick="viewOriginal('${item.fullSrc}')">
+          <div class="saved-item-info">${escapeHtml(item.handle)}</div>
+          <button class="saved-item-remove" onclick="removeFromSavedLater('${item.fullSrc}')">Remove</button>
+        </div>
+      `).join('');
+    }
+
+    function viewOriginal(src) {
+      const modal = document.getElementById('image-modal');
+      const img = document.getElementById('modal-image');
+      img.src = src;
+      modal.classList.add('visible');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('modal-close')) {
+        return;
+      }
+      const modal = document.getElementById('image-modal');
+      modal.classList.remove('visible');
+      document.body.style.overflow = '';
+    }
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Store last results for refresh
+    let lastProductResults = [];
+
+    function refreshCurrentResults() {
+      if (lastProductResults.length > 0) {
+        renderResults(lastProductResults);
+      }
+    }
+
+    // Initialize saved count on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateSavedCount();
+    });
 
     async function checkImages() {
       const textarea = document.getElementById('urls');
@@ -464,16 +726,31 @@ https://shop.udiscovermusic.com/collections/inventory-low
       const results = document.getElementById('results');
       const status = document.getElementById('status');
 
+      // Store for refresh
+      lastProductResults = products;
+
       let totalImages = 0;
       let imagesWithIssues = 0;
       let productsWithIssues = 0;
 
       products.forEach(p => {
-        const hasIssues = p.error || p.images.some(img => img.issues.length > 0);
+        const hasIssues = p.error || p.images.some(img => {
+          // Check if marked as actually fine (ignore issues) or marked wrong (force issues)
+          if (isActuallyFine(img.src)) return false;
+          if (isMarkedWrong(img.src)) return true;
+          return img.issues.length > 0;
+        });
         if (hasIssues) productsWithIssues++;
         p.images.forEach(img => {
           totalImages++;
-          if (img.issues.length > 0) imagesWithIssues++;
+          // Count issues respecting stored states
+          if (isActuallyFine(img.src)) {
+            // Don't count as issue
+          } else if (isMarkedWrong(img.src)) {
+            imagesWithIssues++;
+          } else if (img.issues.length > 0) {
+            imagesWithIssues++;
+          }
         });
       });
 
@@ -501,7 +778,11 @@ https://shop.udiscovermusic.com/collections/inventory-low
 
       // Product cards
       products.forEach(p => {
-        const hasIssues = p.error || p.images.some(img => img.issues.length > 0);
+        const hasIssues = p.error || p.images.some(img => {
+          if (isActuallyFine(img.src)) return false;
+          if (isMarkedWrong(img.src)) return true;
+          return img.issues.length > 0;
+        });
         const cardClass = p.error ? 'has-issues' : (hasIssues ? 'has-issues' : 'all-good');
 
         const productType = p.productType || 'unknown';
@@ -544,7 +825,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
               `<button class="cd-btn" onclick="downloadCDImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Download 553x535 JPG</button>` : '';
 
             const squareBtn = !img.isSquare ?
-              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Make Square 1000x1000</button>` : '';
+              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height}, ${img.hasTransparency === true})">Make Square 1000x1000</button>` : '';
 
             const isWebp = img.format.toLowerCase() === 'webp';
             const convertPngBtn = isWebp ?
@@ -553,11 +834,42 @@ https://shop.udiscovermusic.com/collections/inventory-low
             const cropStatus = img.isSquare ? 'ok' : 'error';
             const cropLabel = img.isSquare ? 'Square' : 'Bad Crop';
 
+            // Check stored states
+            const imgIsActuallyFine = isActuallyFine(img.src);
+            const imgIsMarkedWrong = isMarkedWrong(img.src);
+            const imgIsSavedLater = isSavedForLater(img.src);
+
+            // Determine effective issues (respecting stored states)
+            const effectiveHasIssues = imgIsMarkedWrong || (!imgIsActuallyFine && img.issues.length > 0);
+
+            // Status badge
+            let statusBadge = '';
+            if (imgIsActuallyFine) {
+              statusBadge = '<span class="marked-badge marked-fine">Marked Fine</span>';
+            } else if (imgIsMarkedWrong) {
+              statusBadge = '<span class="marked-badge marked-wrong">Marked Wrong</span>';
+            }
+            if (imgIsSavedLater) {
+              statusBadge += '<span class="marked-badge marked-later">Saved for Later</span>';
+            }
+
+            // Action buttons based on state
+            const actuallyFineBtn = effectiveHasIssues && !imgIsActuallyFine ?
+              `<button class="actually-fine-btn" onclick="markAsActuallyFine('${img.src}', '${p.handle}')">Actually Fine</button>` : '';
+
+            const markWrongBtn = !effectiveHasIssues && !imgIsMarkedWrong ?
+              `<button class="mark-wrong-btn" onclick="markAsWrong('${img.src}', '${p.handle}')">Mark as Wrong</button>` : '';
+
+            const saveLaterBtn = !imgIsSavedLater ?
+              `<button class="save-later-btn" onclick="saveForLater('${img.src}', '${p.handle}', '${escapeHtml(p.title).replace(/'/g, "\\'")}')">Save for Later</button>` : '';
+
+            const viewOriginalBtn = `<button class="view-original-btn" onclick="viewOriginal('${img.src}')">View Original</button>`;
+
             html += `
               <div class="image-item">
-                <img class="image-thumb" src="${img.src}" alt="">
+                <img class="image-thumb" src="${img.src}" alt="" onclick="viewOriginal('${img.src}')" style="cursor: pointer;">
                 <div class="image-details">
-                  <div class="image-filename">${escapeHtml(img.filename)}</div>
+                  <div class="image-filename">${escapeHtml(img.filename)}${statusBadge}</div>
                   <div class="image-meta">
                     <div class="meta-item">
                       <span class="meta-label">Size:</span>
@@ -576,18 +888,27 @@ https://shop.udiscovermusic.com/collections/inventory-low
                       <span class="badge badge-${cropStatus}">${cropLabel}</span>
                     </div>
                   </div>
-                  ${img.issues.length > 0 ? `
+                  ${!imgIsActuallyFine && img.issues.length > 0 ? `
                     <div class="issues-list">
                       ${img.issues.map(issue => `<div class="issue">${escapeHtml(issue)}</div>`).join('')}
                     </div>
                   ` : ''}
+                  ${imgIsMarkedWrong && img.issues.length === 0 ? `
+                    <div class="issues-list">
+                      <div class="issue">Manually marked as needing attention</div>
+                    </div>
+                  ` : ''}
                   <div class="image-actions">
                     <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download Original</button>
-                    <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx})">Download 1000x1000</button>
+                    <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx}, ${img.hasTransparency === true})">Download 1000x1000</button>
                     ${convertPngBtn}
                     ${vinylBtn}
                     ${cdBtn}
                     ${squareBtn}
+                    ${viewOriginalBtn}
+                    ${actuallyFineBtn}
+                    ${markWrongBtn}
+                    ${saveLaterBtn}
                   </div>
                 </div>
               </div>
@@ -680,7 +1001,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
       }
     }
 
-    async function downloadSquareImage(src, handle, idx, origWidth, origHeight) {
+    async function downloadSquareImage(src, handle, idx, origWidth, origHeight, hasTransparency = false) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -691,6 +1012,11 @@ https://shop.udiscovermusic.com/collections/inventory-low
           img.src = src;
         });
 
+        // Get original format
+        const ext = src.split('.').pop().split('?')[0].toLowerCase();
+        const isPng = ext === 'png';
+        const preserveTransparency = isPng && hasTransparency;
+
         // Step 1: Make square by padding (use larger dimension)
         const squareSize = Math.max(origWidth, origHeight);
         const tempCanvas = document.createElement('canvas');
@@ -698,9 +1024,11 @@ https://shop.udiscovermusic.com/collections/inventory-low
         tempCanvas.height = squareSize;
         const tempCtx = tempCanvas.getContext('2d');
 
-        // Fill with white background
-        tempCtx.fillStyle = '#FFFFFF';
-        tempCtx.fillRect(0, 0, squareSize, squareSize);
+        // Only fill with white background if NOT preserving transparency
+        if (!preserveTransparency) {
+          tempCtx.fillStyle = '#FFFFFF';
+          tempCtx.fillRect(0, 0, squareSize, squareSize);
+        }
 
         // Center the image
         const x = (squareSize - origWidth) / 2;
@@ -713,15 +1041,16 @@ https://shop.udiscovermusic.com/collections/inventory-low
         finalCanvas.height = 1000;
         const finalCtx = finalCanvas.getContext('2d');
 
-        finalCtx.fillStyle = '#FFFFFF';
-        finalCtx.fillRect(0, 0, 1000, 1000);
+        // Only fill with white background if NOT preserving transparency
+        if (!preserveTransparency) {
+          finalCtx.fillStyle = '#FFFFFF';
+          finalCtx.fillRect(0, 0, 1000, 1000);
+        }
         finalCtx.drawImage(tempCanvas, 0, 0, 1000, 1000);
 
-        // Get original format or default to PNG
-        const ext = src.split('.').pop().split('?')[0].toLowerCase();
-        const isPng = ext === 'png';
-        const mimeType = isPng ? 'image/png' : 'image/jpeg';
-        const fileExt = isPng ? 'png' : 'jpg';
+        // Use PNG format if preserving transparency
+        const mimeType = preserveTransparency ? 'image/png' : (isPng ? 'image/png' : 'image/jpeg');
+        const fileExt = preserveTransparency ? 'png' : (isPng ? 'png' : 'jpg');
 
         // Convert to blob
         const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, mimeType, 0.9));
@@ -794,7 +1123,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
       }
     }
 
-    async function downloadResizedImage(src, handle, idx) {
+    async function downloadResizedImage(src, handle, idx, hasTransparency = false) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -811,18 +1140,24 @@ https://shop.udiscovermusic.com/collections/inventory-low
         canvas.height = 1000;
         const ctx = canvas.getContext('2d');
 
-        // Fill with white background
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, 1000, 1000);
+        // Get original format
+        const ext = src.split('.').pop().split('?')[0].toLowerCase();
+        const isPng = ext === 'png';
+
+        // Only fill with white background if NOT a transparent PNG
+        // Preserve transparency for transparent PNGs
+        if (!isPng || !hasTransparency) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, 1000, 1000);
+        }
 
         // Draw resized image
         ctx.drawImage(img, 0, 0, 1000, 1000);
 
-        // Get original format
-        const ext = src.split('.').pop().split('?')[0].toLowerCase();
-        const isPng = ext === 'png';
-        const mimeType = isPng ? 'image/png' : 'image/jpeg';
-        const fileExt = isPng ? 'png' : 'jpg';
+        // Use PNG format if it's a transparent PNG, otherwise use original format logic
+        const outputAsPng = isPng && hasTransparency;
+        const mimeType = outputAsPng ? 'image/png' : (isPng ? 'image/png' : 'image/jpeg');
+        const fileExt = outputAsPng ? 'png' : (isPng ? 'png' : 'jpg');
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
         const filename = `${handle}_${idx + 1}_1000x1000.${fileExt}`;
