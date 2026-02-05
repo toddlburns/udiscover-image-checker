@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Checker - uDiscover</title>
+  <title>Image Checker</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><radialGradient id='g' cx='50%25' cy='50%25' r='50%25'><stop offset='0%25' stop-color='%23fff' stop-opacity='0.9'/><stop offset='30%25' stop-color='%23ffa500'/><stop offset='70%25' stop-color='%23e65c00'/><stop offset='100%25' stop-color='%23e65c00' stop-opacity='0'/></radialGradient><radialGradient id='glow' cx='50%25' cy='50%25' r='50%25'><stop offset='60%25' stop-color='%23ffa500' stop-opacity='0.4'/><stop offset='100%25' stop-color='%23ffa500' stop-opacity='0'/></radialGradient></defs><circle cx='50' cy='50' r='48' fill='url(%23glow)'/><circle cx='50' cy='50' r='30' fill='url(%23g)'/></svg>">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -292,11 +292,11 @@
 </head>
 <body>
   <div class="container">
-    <h1>uDiscover Image Checker</h1>
-    <p class="subtitle">Paste collection URLs (one per line) to check all product images.</p>
+    <h1>Image Checker</h1>
+    <p class="subtitle">Paste collection URLs from uDiscover or The Sound of Vinyl (one per line) to check all product images.</p>
 
     <textarea id="urls" placeholder="https://shop.udiscovermusic.com/collections/soldouttest
-https://shop.udiscovermusic.com/collections/inventory-low
+https://thesoundofvinyl.us/collections/low-inventory
 ..."></textarea>
 
     <div class="btn-row">
@@ -334,7 +334,20 @@ https://shop.udiscovermusic.com/collections/inventory-low
   <script>
     const MIN_SIZE = 801;
     const MAX_SIZE = 1199;
-    const SHOP_BASE = 'https://shop.udiscovermusic.com';
+
+    const KNOWN_SHOPS = {
+      'shop.udiscovermusic.com': 'https://shop.udiscovermusic.com',
+      'thesoundofvinyl.us': 'https://thesoundofvinyl.us'
+    };
+
+    function detectShopBase(url) {
+      try {
+        const host = new URL(url).hostname;
+        return KNOWN_SHOPS[host] || null;
+      } catch {
+        return null;
+      }
+    }
 
     // LocalStorage keys
     const STORAGE_KEYS = {
@@ -600,6 +613,12 @@ https://shop.udiscovermusic.com/collections/inventory-low
     }
 
     async function fetchCollectionProducts(url) {
+      // Detect shop from URL
+      const shopBase = detectShopBase(url);
+      if (!shopBase) {
+        throw new Error('Unrecognized shop URL. Use shop.udiscovermusic.com or thesoundofvinyl.us');
+      }
+
       // Extract collection handle from URL
       const match = url.match(/\/collections\/([^/?#]+)/);
       if (!match) {
@@ -613,7 +632,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
       const limit = 250; // Max per page
 
       while (true) {
-        const jsonUrl = `${SHOP_BASE}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
+        const jsonUrl = `${shopBase}/collections/${handle}/products.json?limit=${limit}&page=${page}`;
         const res = await fetch(jsonUrl);
         if (!res.ok) throw new Error(`Failed to fetch collection (${res.status})`);
         const data = await res.json();
@@ -622,7 +641,7 @@ https://shop.udiscovermusic.com/collections/inventory-low
 
         allProducts.push(...data.products.map(p => ({
           ...p,
-          url: `${SHOP_BASE}/products/${p.handle}`,
+          url: `${shopBase}/products/${p.handle}`,
           collectionHandle: handle
         })));
 
