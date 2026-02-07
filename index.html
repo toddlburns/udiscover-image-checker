@@ -1537,10 +1537,11 @@ https://thesoundofvinyl.us/collections/low-inventory
         const isLight = (idx) => {
           const r = data[idx], g = data[idx + 1], b = data[idx + 2];
           const brightness = (r + g + b) / 3;
-          // Check if grayish (low saturation) and light
+          // Check if grayish (low saturation) - catches shadows too
           const max = Math.max(r, g, b), min = Math.min(r, g, b);
           const saturation = max === 0 ? 0 : (max - min) / max;
-          return brightness > 180 && saturation < 0.15;
+          // Lower threshold (140) to catch darker shadows, low saturation for gray
+          return brightness > 140 && saturation < 0.12;
         };
 
         // Start flood fill from all edge pixels
