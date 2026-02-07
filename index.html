@@ -352,8 +352,8 @@ https://thesoundofvinyl.us/collections/low-inventory
   </div>
 
   <script type="module">
-    // Import background removal library
-    import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/+esm';
+    // Background removal library - loaded on demand
+    let imglyRemoveBackground = null;
 
     // Make functions available globally
     window.checkImages = checkImages;
@@ -1528,13 +1528,21 @@ https://thesoundofvinyl.us/collections/low-inventory
         // Update button state
         const originalText = buttonEl.textContent;
         buttonEl.disabled = true;
-        buttonEl.textContent = 'Loading model...';
+        buttonEl.textContent = 'Loading library...';
+
+        // Lazy load the library only when needed
+        if (!imglyRemoveBackground) {
+          const module = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/+esm');
+          imglyRemoveBackground = module.default;
+        }
+
+        buttonEl.textContent = 'Fetching image...';
 
         // Fetch the image as a blob
         const response = await fetch(src);
         const inputBlob = await response.blob();
 
-        buttonEl.textContent = 'Removing BG...';
+        buttonEl.textContent = 'Loading AI model...';
 
         // Remove background using imgly
         const resultBlob = await imglyRemoveBackground(inputBlob, {
