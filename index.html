@@ -276,6 +276,14 @@
     .view-saved-btn { background: #ca8a04; color: #fff; }
     .view-saved-btn:hover { background: #a16207; }
 
+    .find-image-btn { background: #be185d; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .find-image-btn:hover { background: #9d174d; }
+
+    .check-other-store-btn { background: #0d9488; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .check-other-store-btn:hover { background: #0f766e; }
+
+    .product-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
     .clear-saved-btn { background: #dc2626; color: #fff; font-size: 0.8rem; padding: 6px 12px; margin-left: auto; }
     .clear-saved-btn:hover { background: #b91c1c; }
 
@@ -347,6 +355,30 @@ https://thesoundofvinyl.us/collections/low-inventory
       } catch {
         return null;
       }
+    }
+
+    function getOtherStoreName(productUrl) {
+      const isUdiscover = productUrl.includes('shop.udiscovermusic.com');
+      return isUdiscover ? '🏪 Check Sound of Vinyl' : '🏪 Check uDiscover';
+    }
+
+    function findHiResImage(productTitle) {
+      // Build Google Images search URL excluding uDiscover and Sound of Vinyl
+      const query = encodeURIComponent(`${productTitle} album cover -site:shop.udiscovermusic.com -site:thesoundofvinyl.us -site:udiscovermusic.com`);
+      const googleUrl = `https://www.google.com/search?tbm=isch&q=${query}&tbs=isz:l`;
+      window.open(googleUrl, '_blank');
+    }
+
+    function checkOtherStore(productTitle, currentUrl) {
+      const isUdiscover = currentUrl.includes('shop.udiscovermusic.com');
+      const otherStoreBase = isUdiscover
+        ? 'https://thesoundofvinyl.us'
+        : 'https://shop.udiscovermusic.com';
+
+      // Search the other store for this product
+      const searchQuery = encodeURIComponent(productTitle);
+      const searchUrl = `${otherStoreBase}/search?q=${searchQuery}`;
+      window.open(searchUrl, '_blank');
     }
 
     // LocalStorage keys
@@ -857,6 +889,10 @@ https://thesoundofvinyl.us/collections/low-inventory
                 <div class="product-title">${escapeHtml(p.title)}</div>
                 <div class="product-url"><a href="${p.url}" target="_blank">${p.url}</a></div>
                 <div class="product-type"><span class="badge badge-${typeBadgeClass}">${typeLabel}</span></div>
+                <div class="product-actions">
+                  <button class="find-image-btn" onclick="findHiResImage('${escapeForAttr(p.title)}')">🔍 Find Hi-Res Image</button>
+                  <button class="check-other-store-btn" onclick="checkOtherStore('${escapeForAttr(p.title)}', '${p.url}')">${getOtherStoreName(p.url)}</button>
+                </div>
               </div>
             </div>
         `;
@@ -1002,6 +1038,11 @@ https://thesoundofvinyl.us/collections/low-inventory
       const d = document.createElement('div');
       d.textContent = str;
       return d.innerHTML;
+    }
+
+    function escapeForAttr(str) {
+      // Escape string for use in HTML attribute (onclick handler)
+      return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     }
 
     async function downloadSingleImage(src, handle, idx) {
