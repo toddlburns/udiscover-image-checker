@@ -1502,29 +1502,71 @@ https://thesoundofvinyl.us/collections/low-inventory
         buttonEl.disabled = true;
         buttonEl.textContent = 'Loading library...';
 
-        // Lazy load the library only when needed
-        if (!window.bgRemovalModule) {
-          buttonEl.textContent = 'Loading library...';
-          const module = await import('https://cdn.skypack.dev/@imgly/background-removal@1.4.5');
-          window.bgRemovalModule = module.default || module.removeBackground || module;
+        // Lazy load Transformers.js library
+        if (!window.AutoModel) {
+          buttonEl.textContent = 'Loading AI library...';
+          const transformers = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+          window.AutoModel = transformers.AutoModel;
+          window.AutoProcessor = transformers.AutoProcessor;
+          window.RawImage = transformers.RawImage;
+          window.env = transformers.env;
+          window.env.allowLocalModels = false;
         }
 
-        buttonEl.textContent = 'Fetching image...';
-
-        // Fetch the image as a blob
-        const response = await fetch(src);
-        const inputBlob = await response.blob();
-
-        buttonEl.textContent = 'Loading AI model...';
-
-        const resultBlob = await window.bgRemovalModule(inputBlob, {
-          progress: (key, current, total) => {
-            if (key === 'compute:inference') {
-              const pct = Math.round((current / total) * 100);
-              buttonEl.textContent = `Processing ${pct}%`;
+        // Load model on first use
+        if (!window.rmbgModel) {
+          buttonEl.textContent = 'Loading AI model (first time ~50MB)...';
+          window.rmbgModel = await window.AutoModel.from_pretrained('briaai/RMBG-1.4', {
+            config: { model_type: 'custom' },
+          });
+          window.rmbgProcessor = await window.AutoProcessor.from_pretrained('briaai/RMBG-1.4', {
+            config: {
+              do_normalize: true,
+              do_pad: false,
+              do_rescale: true,
+              do_resize: true,
+              image_mean: [0.5, 0.5, 0.5],
+              image_std: [1, 1, 1],
+              resample: 2,
+              rescale_factor: 0.00392156862745098,
+              size: { width: 1024, height: 1024 },
             }
-          }
-        });
+          });
+        }
+
+        buttonEl.textContent = 'Processing image...';
+
+        // Load and process image
+        const image = await window.RawImage.fromURL(src);
+        const { pixel_values } = await window.rmbgProcessor(image);
+
+        // Run model
+        const { output } = await window.rmbgModel({ input: pixel_values });
+
+        // Resize mask to original size
+        const maskData = await window.RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(image.width, image.height);
+
+        // Apply mask to original image
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+
+        // Draw original
+        ctx.drawImage(image.toCanvas(), 0, 0);
+
+        // Get image data and apply mask
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        for (let i = 0; i < maskData.data.length; i++) {
+          data[i * 4 + 3] = maskData.data[i]; // Set alpha from mask
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+
+        // Convert to blob
+        const resultBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 
         // Download the result
         const filename = `${handle}_${idx + 1}_nobg.png`;
