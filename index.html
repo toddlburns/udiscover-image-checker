@@ -635,11 +635,11 @@ https://thesoundofvinyl.us/collections/low-inventory
       saveStoredList(STORAGE_KEYS.MARKED_WRONG, list);
     }
 
-    function saveForLater(src, handle, productTitle) {
+    function saveForLater(src, handle, productTitle, shopifyId) {
       const list = loadStoredList(STORAGE_KEYS.SAVED_LATER);
       const key = getImageKey(src);
       if (!list.some(item => item.src === key)) {
-        list.push({ src: key, fullSrc: src, handle, productTitle, savedAt: Date.now() });
+        list.push({ src: key, fullSrc: src, handle, productTitle, shopifyId, savedAt: Date.now() });
         saveStoredList(STORAGE_KEYS.SAVED_LATER, list);
       }
       updateSavedCount();
@@ -703,9 +703,9 @@ https://thesoundofvinyl.us/collections/low-inventory
           <img src="${item.fullSrc}" alt="" onclick="viewOriginal('${item.fullSrc}')">
           <div class="saved-item-info">${escapeHtml(item.handle)}${item.productTitle ? ' — ' + escapeHtml(item.productTitle) : ''}</div>
           <div class="saved-item-actions">
-            <button class="single-download-btn" onclick="downloadSingleImage('${item.fullSrc}', '${item.handle}', 0)">Download Original</button>
-            <button class="resize-btn" onclick="downloadResizedImage('${item.fullSrc}', '${item.handle}', 0)">Download 1000x1000</button>
-            <button class="remove-bg-btn" onclick="removeBackground('${item.fullSrc}', '${item.handle}', 0, this)">Remove BG</button>
+            <button class="single-download-btn" onclick="downloadSingleImage('${item.fullSrc}', '${item.handle}', 0, '${item.shopifyId || ''}')">Download Original</button>
+            <button class="resize-btn" onclick="downloadResizedImage('${item.fullSrc}', '${item.handle}', 0, false, '${item.shopifyId || ''}')">Download 1000x1000</button>
+            <button class="remove-bg-btn" onclick="removeBackground('${item.fullSrc}', '${item.handle}', 0, this, '${item.shopifyId || ''}')">Remove BG</button>
             <button class="view-original-btn" onclick="viewOriginal('${item.fullSrc}')">View Original</button>
             <button class="actually-fine-btn" onclick="markAsActuallyFine('${item.fullSrc}', '${item.handle}'); removeFromSavedLater('${item.fullSrc}')">Actually Fine</button>
           </div>
@@ -891,6 +891,7 @@ https://thesoundofvinyl.us/collections/low-inventory
         url: product.url,
         title: product.title,
         handle: product.handle,
+        shopifyId: product.id,
         featuredImage: product.images?.[0]?.src || '',
         images: imageResults,
         productType: detectProductType(product)
@@ -1093,13 +1094,13 @@ https://thesoundofvinyl.us/collections/low-inventory
             }
 
             const vinylBtn = productType === 'vinyl' ?
-              `<button class="vinyl-btn" onclick="downloadVinylImage('${img.src}', '${p.handle}', ${idx})">Download 566x566 JPG</button>` : '';
+              `<button class="vinyl-btn" onclick="downloadVinylImage('${img.src}', '${p.handle}', ${idx}, '${p.shopifyId}')">Download 566x566 JPG</button>` : '';
 
             const cdBtn = productType === 'cd' ?
-              `<button class="cd-btn" onclick="downloadCDImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height})">Download 553x535 JPG</button>` : '';
+              `<button class="cd-btn" onclick="downloadCDImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height}, '${p.shopifyId}')">Download 553x535 JPG</button>` : '';
 
             const squareBtn = !img.isSquare ?
-              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height}, ${img.hasTransparency === true})">Make Square 1000x1000</button>` : '';
+              `<button class="square-btn" onclick="downloadSquareImage('${img.src}', '${p.handle}', ${idx}, ${img.width}, ${img.height}, ${img.hasTransparency === true}, '${p.shopifyId}')">Make Square 1000x1000</button>` : '';
 
             const isWebp = img.format.toLowerCase() === 'webp';
             const convertPngBtn = isWebp ?
@@ -1135,12 +1136,12 @@ https://thesoundofvinyl.us/collections/low-inventory
               `<button class="mark-wrong-btn" onclick="markAsWrong('${img.src}', '${p.handle}')">Mark as Wrong</button>` : '';
 
             const saveLaterBtn = !imgIsSavedLater ?
-              `<button class="save-later-btn" onclick="saveForLater('${img.src}', '${p.handle}', '${escapeHtml(p.title).replace(/'/g, "\\'")}')">Save for Later</button>` : '';
+              `<button class="save-later-btn" onclick="saveForLater('${img.src}', '${p.handle}', '${escapeHtml(p.title).replace(/'/g, "\\'")}', '${p.shopifyId}')">Save for Later</button>` : '';
 
             const viewOriginalBtn = `<button class="view-original-btn" onclick="viewOriginal('${img.src}')">View Original</button>`;
 
             const removeBgBtn = (img.hasTransparency === false || !img.isPng) ?
-              `<button class="remove-bg-btn" onclick="removeBackground('${img.src}', '${p.handle}', ${idx}, this)">Remove BG</button>` : '';
+              `<button class="remove-bg-btn" onclick="removeBackground('${img.src}', '${p.handle}', ${idx}, this, '${p.shopifyId}')">Remove BG</button>` : '';
 
             html += `
               <div class="image-item">
@@ -1176,8 +1177,8 @@ https://thesoundofvinyl.us/collections/low-inventory
                     </div>
                   ` : ''}
                   <div class="image-actions">
-                    <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download Original</button>
-                    <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx}, ${img.hasTransparency === true})">Download 1000x1000</button>
+                    <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx}, '${p.shopifyId}')">Download Original</button>
+                    <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx}, ${img.hasTransparency === true}, '${p.shopifyId}')">Download 1000x1000</button>
                     ${convertPngBtn}
                     ${removeBgBtn}
                     ${vinylBtn}
@@ -1234,12 +1235,12 @@ https://thesoundofvinyl.us/collections/low-inventory
       return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     }
 
-    async function downloadSingleImage(src, handle, idx) {
+    async function downloadSingleImage(src, handle, idx, shopifyId) {
       try {
         const response = await fetch(src);
         const blob = await response.blob();
         const ext = src.split('.').pop().split('?')[0] || 'jpg';
-        const filename = `${handle}_${idx + 1}.${ext}`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}.${ext}` : `${handle}_${idx + 1}.${ext}`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1252,7 +1253,7 @@ https://thesoundofvinyl.us/collections/low-inventory
       }
     }
 
-    async function downloadVinylImage(src, handle, idx) {
+    async function downloadVinylImage(src, handle, idx, shopifyId) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1278,7 +1279,7 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         // Convert to JPG blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-        const filename = `${handle}_${idx + 1}_566x566.jpg`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}_566x566.jpg` : `${handle}_${idx + 1}_566x566.jpg`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1291,7 +1292,7 @@ https://thesoundofvinyl.us/collections/low-inventory
       }
     }
 
-    async function downloadSquareImage(src, handle, idx, origWidth, origHeight, hasTransparency = false) {
+    async function downloadSquareImage(src, handle, idx, origWidth, origHeight, hasTransparency = false, shopifyId = null) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1344,7 +1345,7 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         // Convert to blob
         const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, mimeType, 0.9));
-        const filename = `${handle}_${idx + 1}_1000x1000.${fileExt}`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}_1000x1000.${fileExt}` : `${handle}_${idx + 1}_1000x1000.${fileExt}`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1357,7 +1358,7 @@ https://thesoundofvinyl.us/collections/low-inventory
       }
     }
 
-    async function downloadCDImage(src, handle, idx, origWidth, origHeight) {
+    async function downloadCDImage(src, handle, idx, origWidth, origHeight, shopifyId = null) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1400,7 +1401,7 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         // Convert to JPG blob
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-        const filename = `${handle}_${idx + 1}_553x535.jpg`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}_553x535.jpg` : `${handle}_${idx + 1}_553x535.jpg`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1413,7 +1414,7 @@ https://thesoundofvinyl.us/collections/low-inventory
       }
     }
 
-    async function downloadResizedImage(src, handle, idx, hasTransparency = false) {
+    async function downloadResizedImage(src, handle, idx, hasTransparency = false, shopifyId = null) {
       try {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -1450,7 +1451,7 @@ https://thesoundofvinyl.us/collections/low-inventory
         const fileExt = outputAsPng ? 'png' : (isPng ? 'png' : 'jpg');
 
         const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.9));
-        const filename = `${handle}_${idx + 1}_1000x1000.${fileExt}`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}_1000x1000.${fileExt}` : `${handle}_${idx + 1}_1000x1000.${fileExt}`;
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -1495,7 +1496,7 @@ https://thesoundofvinyl.us/collections/low-inventory
       }
     }
 
-    async function removeBackground(src, handle, idx, buttonEl) {
+    async function removeBackground(src, handle, idx, buttonEl, shopifyId = null) {
       try {
         // Update button state
         const originalText = buttonEl.textContent;
@@ -1630,7 +1631,7 @@ https://thesoundofvinyl.us/collections/low-inventory
         const resultBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
 
         // Download the result
-        const filename = `${handle}_${idx + 1}_nobg.png`;
+        const filename = shopifyId ? `${handle}_${shopifyId}_${idx + 1}_nobg.png` : `${handle}_${idx + 1}_nobg.png`;
         const link = document.createElement('a');
         link.href = URL.createObjectURL(resultBlob);
         link.download = filename;
