@@ -1525,8 +1525,18 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         buttonEl.textContent = 'Loading AI model...';
 
-        // Remove background using imgly (global window.imglyRemoveBackground)
-        const resultBlob = await window.imglyRemoveBackground(inputBlob, {
+        // Remove background using imgly
+        // The UMD build exports to window.imglyRemoveBackground or window.imglyRemoveBackground.removeBackground
+        const removeBgFn = window.imglyRemoveBackground?.removeBackground ||
+                          window.imglyRemoveBackground?.default ||
+                          window.imglyRemoveBackground;
+
+        if (!removeBgFn || typeof removeBgFn !== 'function') {
+          console.log('Available on window.imglyRemoveBackground:', window.imglyRemoveBackground);
+          throw new Error('Background removal function not found. Check console for details.');
+        }
+
+        const resultBlob = await removeBgFn(inputBlob, {
           progress: (key, current, total) => {
             if (key === 'compute:inference') {
               const pct = Math.round((current / total) * 100);
