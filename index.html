@@ -351,34 +351,9 @@ https://thesoundofvinyl.us/collections/low-inventory
     </div>
   </div>
 
-  <script type="module">
+  <script>
     // Background removal library - loaded on demand
-    let imglyRemoveBackground = null;
-
-    // Make functions available globally
-    window.checkImages = checkImages;
-    window.clearAll = clearAll;
-    window.toggleFilter = toggleFilter;
-    window.downloadIssueImages = downloadIssueImages;
-    window.downloadSingleImage = downloadSingleImage;
-    window.downloadResizedImage = downloadResizedImage;
-    window.downloadVinylImage = downloadVinylImage;
-    window.downloadCDImage = downloadCDImage;
-    window.downloadSquareImage = downloadSquareImage;
-    window.convertToPng = convertToPng;
-    window.viewOriginal = viewOriginal;
-    window.closeModal = closeModal;
-    window.markAsActuallyFine = markAsActuallyFine;
-    window.markAsWrong = markAsWrong;
-    window.saveForLater = saveForLater;
-    window.removeFromSavedLater = removeFromSavedLater;
-    window.clearSavedLater = clearSavedLater;
-    window.toggleSavedPanel = toggleSavedPanel;
-    window.toggleExpandSaved = toggleExpandSaved;
-    window.findHiResImage = findHiResImage;
-    window.checkOtherStore = checkOtherStore;
-    window.viewOtherStoreProduct = viewOtherStoreProduct;
-    window.removeBackground = removeBackground;
+    let bgRemovalLoaded = false;
 
     const MIN_SIZE = 801;
     const MAX_SIZE = 1199;
@@ -1531,9 +1506,15 @@ https://thesoundofvinyl.us/collections/low-inventory
         buttonEl.textContent = 'Loading library...';
 
         // Lazy load the library only when needed
-        if (!imglyRemoveBackground) {
-          const module = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/+esm');
-          imglyRemoveBackground = module.default;
+        if (!bgRemovalLoaded) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/index.umd.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          bgRemovalLoaded = true;
         }
 
         buttonEl.textContent = 'Fetching image...';
@@ -1544,8 +1525,8 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         buttonEl.textContent = 'Loading AI model...';
 
-        // Remove background using imgly
-        const resultBlob = await imglyRemoveBackground(inputBlob, {
+        // Remove background using imgly (global window.imglyRemoveBackground)
+        const resultBlob = await window.imglyRemoveBackground(inputBlob, {
           progress: (key, current, total) => {
             if (key === 'compute:inference') {
               const pct = Math.round((current / total) * 100);
