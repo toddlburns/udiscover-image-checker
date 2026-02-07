@@ -281,8 +281,16 @@
 
     .check-other-store-btn { background: #0d9488; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .check-other-store-btn:hover { background: #0f766e; }
+    .check-other-store-btn.different-image { background: #16a34a; }
+    .check-other-store-btn.different-image:hover { background: #15803d; }
+    .check-other-store-btn.same-image { background: #6b7280; }
+    .check-other-store-btn.same-image:hover { background: #4b5563; }
 
-    .product-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .other-store-status { font-size: 0.7rem; color: #666; margin-top: 4px; }
+    .other-store-status.checking { color: #888; font-style: italic; }
+    .other-store-status.not-found { color: #666; }
+
+    .product-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
 
     .clear-saved-btn { background: #dc2626; color: #fff; font-size: 0.8rem; padding: 6px 12px; margin-left: auto; }
     .clear-saved-btn:hover { background: #b91c1c; }
@@ -379,6 +387,139 @@ https://thesoundofvinyl.us/collections/low-inventory
       const searchQuery = encodeURIComponent(productTitle);
       const searchUrl = `${otherStoreBase}/search?q=${searchQuery}`;
       window.open(searchUrl, '_blank');
+    }
+
+    function viewOtherStoreProduct(otherStoreUrl) {
+      window.open(otherStoreUrl, '_blank');
+    }
+
+    // Cache for other store lookups
+    const otherStoreCache = new Map();
+
+    async function checkProductOnOtherStore(product) {
+      const isUdiscover = product.url.includes('shop.udiscovermusic.com');
+      const otherStoreBase = isUdiscover
+        ? 'https://thesoundofvinyl.us'
+        : 'https://shop.udiscovermusic.com';
+      const otherStoreName = isUdiscover ? 'Sound of Vinyl' : 'uDiscover';
+
+      const cacheKey = `${product.handle}-${otherStoreBase}`;
+      if (otherStoreCache.has(cacheKey)) {
+        return otherStoreCache.get(cacheKey);
+      }
+
+      try {
+        // Try to find product by handle first (most reliable)
+        const handleUrl = `${otherStoreBase}/products/${product.handle}.json`;
+        let response = await fetch(handleUrl);
+
+        if (response.ok) {
+          const data = await response.json();
+          const otherProduct = data.product;
+          const result = {
+            found: true,
+            otherStoreName,
+            otherStoreUrl: `${otherStoreBase}/products/${product.handle}`,
+            otherProduct,
+            imageDifferent: checkImagesDifferent(product, otherProduct)
+          };
+          otherStoreCache.set(cacheKey, result);
+          return result;
+        }
+
+        // If not found by handle, search by title
+        const searchUrl = `${otherStoreBase}/search/suggest.json?q=${encodeURIComponent(product.title)}&resources[type]=product&resources[limit]=5`;
+        response = await fetch(searchUrl);
+
+        if (response.ok) {
+          const data = await response.json();
+          const products = data.resources?.results?.products || [];
+
+          // Find best match by title similarity
+          const match = products.find(p =>
+            p.title.toLowerCase() === product.title.toLowerCase() ||
+            p.title.toLowerCase().includes(product.title.toLowerCase()) ||
+            product.title.toLowerCase().includes(p.title.toLowerCase())
+          );
+
+          if (match) {
+            // Fetch full product details
+            const productUrl = `${otherStoreBase}/products/${match.handle}.json`;
+            const productResponse = await fetch(productUrl);
+            if (productResponse.ok) {
+              const productData = await productResponse.json();
+              const otherProduct = productData.product;
+              const result = {
+                found: true,
+                otherStoreName,
+                otherStoreUrl: `${otherStoreBase}/products/${match.handle}`,
+                otherProduct,
+                imageDifferent: checkImagesDifferent(product, otherProduct)
+              };
+              otherStoreCache.set(cacheKey, result);
+              return result;
+            }
+          }
+        }
+
+        const result = { found: false, otherStoreName };
+        otherStoreCache.set(cacheKey, result);
+        return result;
+      } catch (err) {
+        console.error('Error checking other store:', err);
+        const result = { found: false, otherStoreName, error: err.message };
+        otherStoreCache.set(cacheKey, result);
+        return result;
+      }
+    }
+
+    function checkImagesDifferent(product1, product2) {
+      if (!product1.images?.length || !product2.images?.length) return true;
+
+      const img1 = product1.images[0];
+      const img2 = product2.images[0];
+
+      // Check dimensions
+      const dim1 = `${img1.width}x${img1.height}`;
+      const dim2 = `${img2.width}x${img2.height}`;
+      if (dim1 !== dim2) return true;
+
+      // Check if filenames are different (ignoring CDN path differences)
+      const filename1 = img1.src?.split('/').pop()?.split('?')[0] || '';
+      const filename2 = img2.src?.split('/').pop()?.split('?')[0] || '';
+      if (filename1 !== filename2) return true;
+
+      return false;
+    }
+
+    async function updateOtherStoreStatus(productHandle, product) {
+      const statusEl = document.getElementById(`other-store-status-${productHandle}`);
+      const btnContainer = document.getElementById(`other-store-btn-${productHandle}`);
+
+      if (!statusEl || !btnContainer) return;
+
+      const result = await checkProductOnOtherStore(product);
+
+      if (result.found) {
+        const btnClass = result.imageDifferent ? 'different-image' : 'same-image';
+        const btnText = result.imageDifferent
+          ? `✨ ${result.otherStoreName} (different image!)`
+          : `🏪 ${result.otherStoreName} (same image)`;
+
+        btnContainer.innerHTML = `
+          <button class="check-other-store-btn ${btnClass}" onclick="viewOtherStoreProduct('${result.otherStoreUrl}')">
+            ${btnText}
+          </button>
+        `;
+        statusEl.textContent = result.imageDifferent
+          ? `${result.otherProduct.images?.[0]?.width}x${result.otherProduct.images?.[0]?.height}`
+          : '';
+        statusEl.className = 'other-store-status';
+      } else {
+        btnContainer.innerHTML = '';
+        statusEl.textContent = `Not on ${result.otherStoreName}`;
+        statusEl.className = 'other-store-status not-found';
+      }
     }
 
     // LocalStorage keys
@@ -891,8 +1032,11 @@ https://thesoundofvinyl.us/collections/low-inventory
                 <div class="product-type"><span class="badge badge-${typeBadgeClass}">${typeLabel}</span></div>
                 <div class="product-actions">
                   <button class="find-image-btn" onclick="findHiResImage('${escapeForAttr(p.title)}')">🔍 Find Hi-Res Image</button>
-                  <button class="check-other-store-btn" onclick="checkOtherStore('${escapeForAttr(p.title)}', '${p.url}')">${getOtherStoreName(p.url)}</button>
+                  <span id="other-store-btn-${p.handle}">
+                    <span class="other-store-status checking">Checking other store...</span>
+                  </span>
                 </div>
+                <div id="other-store-status-${p.handle}" class="other-store-status"></div>
               </div>
             </div>
         `;
@@ -1022,6 +1166,13 @@ https://thesoundofvinyl.us/collections/low-inventory
       // Show filter row
       document.getElementById('filter-row').classList.add('visible');
       document.getElementById('download-btn').disabled = imagesWithIssues === 0;
+
+      // Check other store availability for each product (async, in background)
+      products.forEach(p => {
+        if (!p.error && p.handle) {
+          updateOtherStoreStatus(p.handle, p);
+        }
+      });
     }
 
     function clearAll() {
