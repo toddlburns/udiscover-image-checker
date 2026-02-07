@@ -910,6 +910,7 @@ https://thesoundofvinyl.us/collections/low-inventory
 
       // Check format
       const isPng = ext === 'png';
+      const isWebp = ext === 'webp';
       if (!isPng) {
         issues.push(`Not a PNG (found .${ext})`);
       }
@@ -925,12 +926,12 @@ https://thesoundofvinyl.us/collections/low-inventory
         }
       }
 
-      // Check transparency (only for PNGs)
+      // Check transparency (for PNGs and WebPs)
       let hasTransparency = null;
-      if (isPng) {
+      if (isPng || isWebp) {
         try {
           hasTransparency = await checkTransparency(src);
-          if (!hasTransparency) {
+          if (!hasTransparency && isPng) {
             issues.push('PNG does not have transparency');
           }
         } catch (err) {
@@ -949,6 +950,7 @@ https://thesoundofvinyl.us/collections/low-inventory
         height,
         format: ext.toUpperCase(),
         isPng,
+        isWebp,
         isCorrectSize,
         isSquare,
         hasTransparency,
@@ -1434,10 +1436,13 @@ https://thesoundofvinyl.us/collections/low-inventory
         // Get original format
         const ext = src.split('.').pop().split('?')[0].toLowerCase();
         const isPng = ext === 'png';
+        const isWebp = ext === 'webp';
 
-        // Only fill with white background if NOT a transparent PNG
-        // Preserve transparency for transparent PNGs
-        if (!isPng || !hasTransparency) {
+        // Preserve transparency for transparent PNGs or transparent WebPs
+        const preserveTransparency = (isPng || isWebp) && hasTransparency;
+
+        // Only fill with white background if NOT preserving transparency
+        if (!preserveTransparency) {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, 1000, 1000);
         }
@@ -1445,8 +1450,8 @@ https://thesoundofvinyl.us/collections/low-inventory
         // Draw resized image
         ctx.drawImage(img, 0, 0, 1000, 1000);
 
-        // Use PNG format if it's a transparent PNG, otherwise use original format logic
-        const outputAsPng = isPng && hasTransparency;
+        // Output as PNG if preserving transparency, otherwise use original format logic
+        const outputAsPng = preserveTransparency;
         const mimeType = outputAsPng ? 'image/png' : (isPng ? 'image/png' : 'image/jpeg');
         const fileExt = outputAsPng ? 'png' : (isPng ? 'png' : 'jpg');
 
