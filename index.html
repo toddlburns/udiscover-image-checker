@@ -408,39 +408,68 @@ https://thesoundofvinyl.us/collections/low-inventory
         return otherStoreCache.get(cacheKey);
       }
 
-      try {
-        // Try to find product by handle first (most reliable)
-        const handleUrl = `${otherStoreBase}/products/${product.handle}.json`;
-        let response = await fetch(handleUrl);
+      // Generate handle variations to try (with/without format suffixes)
+      const formatSuffixes = ['-lp', '-vinyl', '-cd', '-2lp', '-3lp', '-1lp'];
+      const baseHandle = product.handle.replace(new RegExp(`(${formatSuffixes.join('|')})$`), '');
+      const handleVariations = [
+        product.handle,
+        baseHandle,
+        ...formatSuffixes.map(suffix => baseHandle + suffix)
+      ];
+      // Remove duplicates
+      const uniqueHandles = [...new Set(handleVariations)];
 
-        if (response.ok) {
-          const data = await response.json();
-          const otherProduct = data.product;
-          const result = {
-            found: true,
-            otherStoreName,
-            otherStoreUrl: `${otherStoreBase}/products/${product.handle}`,
-            otherProduct,
-            imageDifferent: checkImagesDifferent(product, otherProduct)
-          };
-          otherStoreCache.set(cacheKey, result);
-          return result;
+      try {
+        // Try to find product by handle variations
+        for (const handle of uniqueHandles) {
+          const handleUrl = `${otherStoreBase}/products/${handle}.json`;
+          let response = await fetch(handleUrl);
+
+          if (response.ok) {
+            const data = await response.json();
+            const otherProduct = data.product;
+            const result = {
+              found: true,
+              otherStoreName,
+              otherStoreUrl: `${otherStoreBase}/products/${handle}`,
+              otherProduct,
+              imageDifferent: checkImagesDifferent(product, otherProduct)
+            };
+            otherStoreCache.set(cacheKey, result);
+            return result;
+          }
         }
 
         // If not found by handle, search by title
-        const searchUrl = `${otherStoreBase}/search/suggest.json?q=${encodeURIComponent(product.title)}&resources[type]=product&resources[limit]=5`;
-        response = await fetch(searchUrl);
+        // Strip format info from title for better matching
+        const cleanTitle = product.title
+          .replace(/\s*[\[\(].*?[\]\)]\s*/g, '') // Remove bracketed content
+          .replace(/\s*(LP|CD|Vinyl|2LP|3LP|1LP)\s*$/i, '') // Remove format suffix
+          .trim();
+
+        const searchUrl = `${otherStoreBase}/search/suggest.json?q=${encodeURIComponent(cleanTitle)}&resources[type]=product&resources[limit]=10`;
+        let response = await fetch(searchUrl);
 
         if (response.ok) {
           const data = await response.json();
           const products = data.resources?.results?.products || [];
 
-          // Find best match by title similarity
-          const match = products.find(p =>
-            p.title.toLowerCase() === product.title.toLowerCase() ||
-            p.title.toLowerCase().includes(product.title.toLowerCase()) ||
-            product.title.toLowerCase().includes(p.title.toLowerCase())
-          );
+          // Normalize title for comparison
+          const normalizeTitle = (t) => t.toLowerCase()
+            .replace(/\s*[\[\(].*?[\]\)]\s*/g, '')
+            .replace(/\s*(lp|cd|vinyl|2lp|3lp|1lp)\s*$/i, '')
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+
+          const normalizedSource = normalizeTitle(product.title);
+
+          // Find best match by normalized title
+          const match = products.find(p => {
+            const normalizedTarget = normalizeTitle(p.title);
+            return normalizedSource === normalizedTarget ||
+                   normalizedSource.includes(normalizedTarget) ||
+                   normalizedTarget.includes(normalizedSource);
+          });
 
           if (match) {
             // Fetch full product details
