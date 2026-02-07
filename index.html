@@ -352,9 +352,6 @@ https://thesoundofvinyl.us/collections/low-inventory
   </div>
 
   <script>
-    // Background removal library - loaded on demand
-    let bgRemovalLoaded = false;
-
     const MIN_SIZE = 801;
     const MAX_SIZE = 1199;
 
@@ -1506,15 +1503,10 @@ https://thesoundofvinyl.us/collections/low-inventory
         buttonEl.textContent = 'Loading library...';
 
         // Lazy load the library only when needed
-        if (!bgRemovalLoaded) {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/@imgly/background-removal@1.4.5/dist/index.umd.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-          bgRemovalLoaded = true;
+        if (!window.bgRemovalModule) {
+          buttonEl.textContent = 'Loading library...';
+          const module = await import('https://cdn.skypack.dev/@imgly/background-removal@1.4.5');
+          window.bgRemovalModule = module.default || module.removeBackground || module;
         }
 
         buttonEl.textContent = 'Fetching image...';
@@ -1525,18 +1517,7 @@ https://thesoundofvinyl.us/collections/low-inventory
 
         buttonEl.textContent = 'Loading AI model...';
 
-        // Remove background using imgly
-        // The UMD build exports to window.imglyRemoveBackground or window.imglyRemoveBackground.removeBackground
-        const removeBgFn = window.imglyRemoveBackground?.removeBackground ||
-                          window.imglyRemoveBackground?.default ||
-                          window.imglyRemoveBackground;
-
-        if (!removeBgFn || typeof removeBgFn !== 'function') {
-          console.log('Available on window.imglyRemoveBackground:', window.imglyRemoveBackground);
-          throw new Error('Background removal function not found. Check console for details.');
-        }
-
-        const resultBlob = await removeBgFn(inputBlob, {
+        const resultBlob = await window.bgRemovalModule(inputBlob, {
           progress: (key, current, total) => {
             if (key === 'compute:inference') {
               const pct = Math.round((current / total) * 100);
