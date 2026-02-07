@@ -87,6 +87,10 @@
     .view-original-btn { background: #7c3aed; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
     .view-original-btn:hover { background: #6d28d9; }
 
+    .remove-bg-btn { background: #ec4899; color: #fff; font-size: 0.75rem; padding: 6px 10px; margin-top: 8px; }
+    .remove-bg-btn:hover { background: #db2777; }
+    .remove-bg-btn:disabled { background: #6b7280; cursor: wait; }
+
     .image-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 
     .product-type { font-size: 0.7rem; margin-top: 4px; }
@@ -347,7 +351,35 @@ https://thesoundofvinyl.us/collections/low-inventory
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    // Import background removal library
+    import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/+esm';
+
+    // Make functions available globally
+    window.checkImages = checkImages;
+    window.clearAll = clearAll;
+    window.toggleFilter = toggleFilter;
+    window.downloadIssueImages = downloadIssueImages;
+    window.downloadSingleImage = downloadSingleImage;
+    window.downloadResizedImage = downloadResizedImage;
+    window.downloadVinylImage = downloadVinylImage;
+    window.downloadCDImage = downloadCDImage;
+    window.downloadSquareImage = downloadSquareImage;
+    window.convertToPng = convertToPng;
+    window.viewOriginal = viewOriginal;
+    window.closeModal = closeModal;
+    window.markAsActuallyFine = markAsActuallyFine;
+    window.markAsWrong = markAsWrong;
+    window.saveForLater = saveForLater;
+    window.removeFromSavedLater = removeFromSavedLater;
+    window.clearSavedLater = clearSavedLater;
+    window.toggleSavedPanel = toggleSavedPanel;
+    window.toggleExpandSaved = toggleExpandSaved;
+    window.findHiResImage = findHiResImage;
+    window.checkOtherStore = checkOtherStore;
+    window.viewOtherStoreProduct = viewOtherStoreProduct;
+    window.removeBackground = removeBackground;
+
     const MIN_SIZE = 801;
     const MAX_SIZE = 1199;
 
@@ -701,6 +733,7 @@ https://thesoundofvinyl.us/collections/low-inventory
           <div class="saved-item-actions">
             <button class="single-download-btn" onclick="downloadSingleImage('${item.fullSrc}', '${item.handle}', 0)">Download Original</button>
             <button class="resize-btn" onclick="downloadResizedImage('${item.fullSrc}', '${item.handle}', 0)">Download 1000x1000</button>
+            <button class="remove-bg-btn" onclick="removeBackground('${item.fullSrc}', '${item.handle}', 0, this)">Remove BG</button>
             <button class="view-original-btn" onclick="viewOriginal('${item.fullSrc}')">View Original</button>
             <button class="actually-fine-btn" onclick="markAsActuallyFine('${item.fullSrc}', '${item.handle}'); removeFromSavedLater('${item.fullSrc}')">Actually Fine</button>
           </div>
@@ -1134,6 +1167,9 @@ https://thesoundofvinyl.us/collections/low-inventory
 
             const viewOriginalBtn = `<button class="view-original-btn" onclick="viewOriginal('${img.src}')">View Original</button>`;
 
+            const removeBgBtn = (img.hasTransparency === false || !img.isPng) ?
+              `<button class="remove-bg-btn" onclick="removeBackground('${img.src}', '${p.handle}', ${idx}, this)">Remove BG</button>` : '';
+
             html += `
               <div class="image-item">
                 <img class="image-thumb" src="${img.src}" alt="" onclick="viewOriginal('${img.src}')" style="cursor: pointer;">
@@ -1171,6 +1207,7 @@ https://thesoundofvinyl.us/collections/low-inventory
                     <button class="single-download-btn" onclick="downloadSingleImage('${img.src}', '${p.handle}', ${idx})">Download Original</button>
                     <button class="resize-btn" onclick="downloadResizedImage('${img.src}', '${p.handle}', ${idx}, ${img.hasTransparency === true})">Download 1000x1000</button>
                     ${convertPngBtn}
+                    ${removeBgBtn}
                     ${vinylBtn}
                     ${cdBtn}
                     ${squareBtn}
@@ -1483,6 +1520,50 @@ https://thesoundofvinyl.us/collections/low-inventory
       } catch (err) {
         console.error('Failed to convert to PNG:', src, err);
         alert('Failed to convert image. This may be due to CORS restrictions.');
+      }
+    }
+
+    async function removeBackground(src, handle, idx, buttonEl) {
+      try {
+        // Update button state
+        const originalText = buttonEl.textContent;
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Loading model...';
+
+        // Fetch the image as a blob
+        const response = await fetch(src);
+        const inputBlob = await response.blob();
+
+        buttonEl.textContent = 'Removing BG...';
+
+        // Remove background using imgly
+        const resultBlob = await imglyRemoveBackground(inputBlob, {
+          progress: (key, current, total) => {
+            if (key === 'compute:inference') {
+              const pct = Math.round((current / total) * 100);
+              buttonEl.textContent = `Processing ${pct}%`;
+            }
+          }
+        });
+
+        // Download the result
+        const filename = `${handle}_${idx + 1}_nobg.png`;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(resultBlob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        buttonEl.textContent = 'Done!';
+        setTimeout(() => {
+          buttonEl.disabled = false;
+          buttonEl.textContent = originalText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to remove background:', src, err);
+        alert('Failed to remove background: ' + err.message);
+        buttonEl.disabled = false;
+        buttonEl.textContent = 'Remove BG';
       }
     }
 
